@@ -1,0 +1,38 @@
+---
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: end-of-file-fixer
+        exclude_types: [svg, plain-text]
+      - id: trailing-whitespace
+        exclude_types: [svg]
+      - id: check-added-large-files
+      - id: check-shebang-scripts-are-executable
+      - id: check-yaml
+      - id: mixed-line-ending
+  # updating ruff must always be in sync between these settings
+  # - ruff version in pre-commit settings
+  # - ruff extension of vscode
+  # - ruff version used during pipelines
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.6.4"
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: 1.21.0
+    hooks:
+      - id: django-upgrade
+        args: [--target-version, "5.0"]
+        types: [python]
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint

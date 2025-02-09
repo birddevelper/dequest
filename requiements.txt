@@ -1,0 +1,4 @@
+responses
+requests
+redis
+pytest

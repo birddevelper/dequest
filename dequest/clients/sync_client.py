@@ -28,8 +28,9 @@ def perform_request(
     url: str,
     method: Optional[str] = "GET",
     headers: Optional[dict] = None,
-    data: Optional[dict] = None,
+    json_body: Optional[dict] = None,
     params: Optional[dict] = None,
+    data: Optional[dict] = None,
     timeout: Optional[int] = 60,
     enable_cache: Optional[bool] = False,
     cache_ttl: Optional[int] = None,
@@ -52,7 +53,7 @@ def perform_request(
             )
             return json.loads(cached_response)
 
-    response = sync_request(method, url, headers, data, params, timeout)
+    response = sync_request(method, url, headers, json_body, params, data, timeout)
 
     if enable_cache:
         cache.set_key(cache_key, json.dumps(response), cache_ttl)
@@ -73,9 +74,7 @@ def sync_client(
     retry_delay: float = 2.0,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
-    default_headers: Optional[
-        Union[dict[str, str], Callable[[], dict[str, str]]]
-    ] = None,
+    headers: Optional[Union[dict[str, str], Callable[[], dict[str, str]]]] = None,
     enable_cache: bool = False,
     cache_ttl: Optional[int] = None,
 ):
@@ -90,7 +89,7 @@ def sync_client(
     :param retry_delay: Delay in seconds between retries.
     :param auth_token: Optional Bearer Token (static string or function returning a string).
     :param api_key: Optional API key (static string or function returning a string).
-    :param default_headers: Optional default headers (can be a dict or a function returning a dict).
+    :param headers: Optional default headers (can be a dict or a function returning a dict).
     :param enable_cache: Whether to cache GET responses.
     """
 
@@ -103,38 +102,38 @@ def sync_client(
                 raise DequestError("Dequest client function must return a dictionary.")
 
             url = result["url"]
-            data = result.get("data", None)
+            json_body = result.get("json_body", None)
             params = result.get("params", None)
+            data = result.get("data", None)
 
             if not isinstance(url, str):
                 raise DequestError("The 'url' key must contain a valid URL string.")
 
-            headers = (
-                default_headers()
-                if callable(default_headers)
-                else (default_headers or {})
-            )
+            request_headers = headers() if callable(headers) else (headers or {})
             token_value = auth_token() if callable(auth_token) else auth_token
             api_key_value = api_key() if callable(api_key) else api_key
 
             if token_value:
-                headers["Authorization"] = f"Bearer {token_value}"
+                request_headers["Authorization"] = f"Bearer {token_value}"
             if api_key_value:
-                headers["x-api-key"] = api_key_value
-            headers["Content-Type"] = "application/json"
+                request_headers["x-api-key"] = api_key_value
 
             for attempt in range(1, retries + 1):
                 try:
                     response_data = perform_request(
                         url,
                         method,
-                        headers,
-                        data,
+                        request_headers,
+                        json_body,
                         params,
+                        data,
                         timeout,
                         enable_cache,
                         cache_ttl,
                     )
+
+                    if not dto_class:
+                        return response_data
 
                     return (
                         [map_to_dto(dto_class, item) for item in response_data]
@@ -154,10 +153,8 @@ def sync_client(
                         time.sleep(retry_delay)
                     else:
                         raise DequestError(
-                            "Dequest client failed after %s attempts: %s",
-                            retries,
-                            e,
-                        ) from None
+                            f"Dequest client failed after {retries} attempts: {retries}",
+                        ) from e
 
             return None
 

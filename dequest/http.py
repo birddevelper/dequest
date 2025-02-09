@@ -1,13 +1,14 @@
 import requests
 
 
-def sync_request(method, url, headers, data, params, timeout):
+def sync_request(method, url, headers, json, params, data, timeout):
     response = requests.request(
         method.upper(),
         url,
         headers=headers,
-        json=data,
+        json=json,
         params=params,
+        data=data,
         timeout=timeout,
     )
     response.raise_for_status()

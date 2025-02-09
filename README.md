@@ -9,7 +9,7 @@ Dequest is a full featured declarative rest client for Python that streamlines t
 
 ✅ Maps API response to DTO object and list (Supports unlimited nested DTOs)
 
-✅ support query parameters, JSON and Form-data
+✅ support query parameters, JSON body and Form-data
 
 ✅ Implements Retry & Timeout Handling
 

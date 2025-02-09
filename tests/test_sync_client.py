@@ -4,7 +4,7 @@ import pytest
 import responses
 from responses.matchers import json_params_matcher, urlencoded_params_matcher
 
-from dequest.clients.sync_client import sync_client
+from dequest.clients import sync_client
 from dequest.exceptions import DequestError
 
 
@@ -224,14 +224,8 @@ def test_sync_client_post_method_with_form_data():
 
     save_user(name="Alice", grade=14, city="New York", birthday="2000-01-01")
 
-    assert (
-        api.calls[0].request.headers["Content-Type"]
-        == "application/x-www-form-urlencoded"
-    )
-    assert (
-        api.calls[0].request.body
-        == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"
-    )
+    assert api.calls[0].request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert api.calls[0].request.body == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"
 
 
 @responses.activate
@@ -269,7 +263,4 @@ def test_sync_client_post_method_with_json_payload():
     save_user(name="Alice", grade=14, city="New York", birthday="2000-01-01")
 
     assert api.calls[0].request.headers["Content-Type"] == "application/json"
-    assert (
-        api.calls[0].request.body
-        == b'{"name": "Alice", "grade": 14, "city": "New York", "birthday": "2000-01-01"}'
-    )
+    assert api.calls[0].request.body == b'{"name": "Alice", "grade": 14, "city": "New York", "birthday": "2000-01-01"}'

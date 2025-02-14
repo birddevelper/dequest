@@ -10,6 +10,19 @@ class AddressDTO:
         self.city = city
 
 
+class OrdertDTO:
+    name: str
+    count: int
+    fee: float
+    total_price: float
+
+    def __init__(self, name, count, fee):
+        self.name = name
+        self.count = count
+        self.fee = fee
+        self.total_price = count * fee
+
+
 class UserDTO:
     name: str
     address: AddressDTO
@@ -44,3 +57,14 @@ def test_mapping_non_nested_dto():
 
     assert address.street == data["street"]
     assert address.city == data["city"]
+
+
+def test_mapping_partial_dto_attributes_in_constructor():
+    data = {"name": "PopCorn", "count": 2, "fee": 10.0}
+
+    order = map_to_dto(OrdertDTO, data)
+
+    assert order.name == data["name"]
+    assert order.count == data["count"]
+    assert order.fee == data["fee"]
+    assert order.total_price == data["count"] * data["fee"]

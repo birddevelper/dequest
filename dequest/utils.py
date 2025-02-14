@@ -1,6 +1,7 @@
 import hashlib
+import inspect
 import json
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional, TypeVar, get_type_hints
 
 T = TypeVar("T")  # Generic Type for DTO
 
@@ -13,13 +14,14 @@ def generate_cache_key(url: str, params: Optional[dict[str, Any]]) -> str:
 
 
 def map_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
-    dto_fields = dto_class.__annotations__.keys()
+    dto_fields = get_type_hints(dto_class).keys()  # Get type hints for all fields
+    init_params = inspect.signature(dto_class).parameters  # Get __init__ parameters
 
     mapped_data = {}
     for key in dto_fields:
         if key in data:
             field_value = data[key]
-            field_annotation = dto_class.__annotations__[key]
+            field_annotation = get_type_hints(dto_class)[key]
 
             # Check if the field is a nested DTO
             if isinstance(field_annotation, type) and hasattr(
@@ -30,4 +32,7 @@ def map_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
             else:
                 mapped_data[key] = field_value
 
-    return dto_class(**mapped_data)
+    # Filter out attributes that are not in the constructor parameters
+    init_data = {k: v for k, v in mapped_data.items() if k in init_params}
+
+    return dto_class(**init_data)

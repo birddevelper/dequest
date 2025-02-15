@@ -7,11 +7,12 @@ from typing import Optional, TypeVar, Union
 
 from requests.exceptions import RequestException, Timeout
 
+from dequest.circut_breaker import CircuitBreaker
 from dequest.http import sync_request
 
 from ..cache import get_cache
 from ..config import DequestConfig
-from ..exceptions import DequestError
+from ..exceptions import CircuitBreakerOpenError, DequestError
 from ..utils import generate_cache_key, map_to_dto
 
 T = TypeVar("T")
@@ -69,18 +70,20 @@ def perform_request(
 def sync_client(
     dto_class: Optional[type[T]] = None,
     method: str = "GET",
-    timeout: int = 5,
-    retries: int = 3,
+    timeout: int = 30,
+    retries: int = 1,
     retry_delay: float = 2.0,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
     headers: Optional[Union[dict[str, str], Callable[[], dict[str, str]]]] = None,
     enable_cache: bool = False,
     cache_ttl: Optional[int] = None,
+    circuit_breaker: Optional[CircuitBreaker] = None,
 ):
     """
-    A decorator to make HTTP requests and map the response to a DTO class.
-    Supports authentication (static and dynamic), retries, logging, query parameters, custom headers, and caching.
+    A decorator to make synchronous HTTP requests and map the response to a DTO class.
+    Supports authentication (static and dynamic), retries, logging, query parameters, custom headers,
+    timeout, circuit breaker and caching.
 
     :param dto_class: The DTO class to map the response data.
     :param method: HTTP method (GET, POST, PUT, DELETE).
@@ -91,6 +94,7 @@ def sync_client(
     :param api_key: Optional API key (static string or function returning a string).
     :param headers: Optional default headers (can be a dict or a function returning a dict).
     :param enable_cache: Whether to cache GET responses.
+    :param circuit_breaker: Instance of CircuitBreaker (optional).
     """
 
     def decorator(func):
@@ -118,6 +122,14 @@ def sync_client(
             if api_key_value:
                 request_headers["x-api-key"] = api_key_value
 
+            # Circuit breaker logic (only applies if an instance od CircuitBreaker is provided)
+            if circuit_breaker and not circuit_breaker.allow_request():
+                logging.warning("Circuit breaker blocking requests to %s", url)
+                if circuit_breaker.fallback_function:
+                    return circuit_breaker.fallback_function()
+
+                raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {url} are blocked.")
+
             for attempt in range(1, retries + 1):
                 try:
                     response_data = perform_request(
@@ -131,6 +143,9 @@ def sync_client(
                         enable_cache,
                         cache_ttl,
                     )
+
+                    if circuit_breaker:
+                        circuit_breaker.record_success()
 
                     if not dto_class:
                         return response_data
@@ -152,6 +167,9 @@ def sync_client(
                         )
                         time.sleep(retry_delay)
                     else:
+                        # Record single failure when all attempts fail
+                        if circuit_breaker:
+                            circuit_breaker.record_failure()
                         raise DequestError(
                             f"Dequest client failed after {retries} attempts: {retries}",
                         ) from e

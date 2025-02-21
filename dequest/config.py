@@ -11,9 +11,6 @@ class DequestConfig:
     REDIS_PASSWORD = None
     REDIS_SSL = False
 
-    # Database Settings (Example for SQLite)
-    DB_URI = "sqlite:///feign_cache.db"
-
     # Logging Settings
     LOG_LEVEL = "INFO"
 

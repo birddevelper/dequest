@@ -1,6 +1,7 @@
 import hashlib
 import inspect
 import json
+import logging
 from typing import Any, Optional, TypeVar, get_type_hints
 
 T = TypeVar("T")  # Generic Type for DTO
@@ -36,3 +37,10 @@ def map_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
     init_data = {k: v for k, v in mapped_data.items() if k in init_params}
 
     return dto_class(**init_data)
+
+
+def get_logger() -> logging.Logger:
+    logger = logging.getLogger("dequest")
+    logger.addHandler(logging.NullHandler())
+
+    return logger

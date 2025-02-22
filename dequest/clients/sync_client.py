@@ -1,5 +1,4 @@
 import json
-import logging
 import time
 from collections.abc import Callable
 from functools import wraps
@@ -7,20 +6,15 @@ from typing import Optional, TypeVar, Union
 
 from requests.exceptions import RequestException, Timeout
 
+from dequest.cache import get_cache
+from dequest.circut_breaker import CircuitBreaker
+from dequest.config import DequestConfig
+from dequest.exceptions import CircuitBreakerOpenError, DequestError
 from dequest.http import sync_request
-
-from ..cache import get_cache
-from ..config import DequestConfig
-from ..exceptions import DequestError
-from ..utils import generate_cache_key, map_to_dto
+from dequest.utils import generate_cache_key, get_logger, map_to_dto
 
 T = TypeVar("T")
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-
+logger = get_logger()
 cache = get_cache()
 
 
@@ -46,7 +40,7 @@ def perform_request(
         cache_key = generate_cache_key(url, params)
         cached_response = cache.get_key(cache_key)
         if cached_response:
-            logging.info(
+            logger.info(
                 "Cache hit for %s (provider: %s)",
                 url,
                 DequestConfig.CACHE_PROVIDER,
@@ -54,10 +48,10 @@ def perform_request(
             return json.loads(cached_response)
 
     response = sync_request(method, url, headers, json_body, params, data, timeout)
-
+    logger.debug("Response for %s: %s", url, response)
     if enable_cache:
         cache.set_key(cache_key, json.dumps(response), cache_ttl)
-        logging.info(
+        logger.info(
             "Cached response for %s in %s",
             url,
             DequestConfig.CACHE_PROVIDER,
@@ -69,18 +63,20 @@ def perform_request(
 def sync_client(
     dto_class: Optional[type[T]] = None,
     method: str = "GET",
-    timeout: int = 5,
-    retries: int = 3,
+    timeout: int = 30,
+    retries: int = 1,
     retry_delay: float = 2.0,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
     headers: Optional[Union[dict[str, str], Callable[[], dict[str, str]]]] = None,
     enable_cache: bool = False,
     cache_ttl: Optional[int] = None,
+    circuit_breaker: Optional[CircuitBreaker] = None,
 ):
     """
-    A decorator to make HTTP requests and map the response to a DTO class.
-    Supports authentication (static and dynamic), retries, logging, query parameters, custom headers, and caching.
+    A decorator to make synchronous HTTP requests and map the response to a DTO class.
+    Supports authentication (static and dynamic), retries, logging, query parameters, custom headers,
+    timeout, circuit breaker and caching.
 
     :param dto_class: The DTO class to map the response data.
     :param method: HTTP method (GET, POST, PUT, DELETE).
@@ -91,6 +87,7 @@ def sync_client(
     :param api_key: Optional API key (static string or function returning a string).
     :param headers: Optional default headers (can be a dict or a function returning a dict).
     :param enable_cache: Whether to cache GET responses.
+    :param circuit_breaker: Instance of CircuitBreaker (optional).
     """
 
     def decorator(func):
@@ -118,6 +115,14 @@ def sync_client(
             if api_key_value:
                 request_headers["x-api-key"] = api_key_value
 
+            # Circuit breaker logic (only applies if an instance od CircuitBreaker is provided)
+            if circuit_breaker and not circuit_breaker.allow_request():
+                logger.warning("Circuit breaker blocking requests to %s", url)
+                if circuit_breaker.fallback_function:
+                    return circuit_breaker.fallback_function()
+
+                raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {url} are blocked.")
+
             for attempt in range(1, retries + 1):
                 try:
                     response_data = perform_request(
@@ -132,6 +137,9 @@ def sync_client(
                         cache_ttl,
                     )
 
+                    if circuit_breaker:
+                        circuit_breaker.record_success()
+
                     if not dto_class:
                         return response_data
 
@@ -142,9 +150,9 @@ def sync_client(
                     )
 
                 except (RequestException, Timeout) as e:
-                    logging.error("Dequest client error: %s", e)
+                    logger.error("Dequest client error: %s", e)
                     if attempt < retries:
-                        logging.info(
+                        logger.info(
                             "Retrying in %s seconds... (Attempt %s/%s)",
                             retry_delay,
                             attempt,
@@ -152,6 +160,9 @@ def sync_client(
                         )
                         time.sleep(retry_delay)
                     else:
+                        # Record single failure when all attempts fail
+                        if circuit_breaker:
+                            circuit_breaker.record_failure()
                         raise DequestError(
                             f"Dequest client failed after {retries} attempts: {retries}",
                         ) from e

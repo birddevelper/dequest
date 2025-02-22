@@ -1,5 +1,5 @@
-from ..config import DequestConfig
-from .cache_drivers import InMemoryCacheDriver, RedisDriver
+from dequest.cache.cache_drivers import InMemoryCacheDriver, RedisDriver
+from dequest.config import DequestConfig
 
 
 class CacheDirector:

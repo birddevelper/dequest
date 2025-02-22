@@ -9,11 +9,13 @@ Dequest is a full featured declarative rest client for Python that streamlines t
 
 ✅ Maps API response to DTO object and list (Supports unlimited nested DTOs)
 
-✅ support query parameters, JSON body and Form-data
+✅ Support query parameters, JSON body and Form-data
 
 ✅ Implements Retry & Timeout Handling
 
 ✅ Allows Custom Headers per Request (Static & Dynamic)
+
+✅ Circuit Breaker with Custom Fallback Function
 
 
 
@@ -49,9 +51,11 @@ def get_user(user_id):
     }
 
 user = get_user(1)
+```
 
-# Retrieving a list of users by city name using query parameters:
+Retrieving a list of users by city name using query parameters:
 
+```python
 @sync_client(dto_class=UserDto)
 def get_users(city_name) -> List[UserDto]:
     return {

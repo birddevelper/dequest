@@ -1,13 +1,16 @@
-import logging
 import time
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, Optional
 
+from dequest.utils import get_logger
+
+logger = get_logger()
+
 
 class CircuitBreakerState(Enum):
-    CLOSED = "CLOSED"  # Normal operation (requests go through)
-    OPEN = "OPEN"  # Blocking requests due to failures
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
     HALF_OPEN = "HALF_OPEN"  # Allowing a single test request
 
 
@@ -28,7 +31,7 @@ class CircuitBreaker:
         self.fallback_function = fallback_function
         self.failures = 0
         self.last_failure_time = None
-        self.state = CircuitBreakerState.CLOSED  # Default state
+        self.state = CircuitBreakerState.CLOSED
 
     def allow_request(self) -> bool:
         """Determines if a request is allowed based on the breaker state."""
@@ -45,7 +48,7 @@ class CircuitBreaker:
         if self.failures >= self.failure_threshold:
             self.state = CircuitBreakerState.OPEN
             self.last_failure_time = time.time()
-            logging.warning("Circuit breaker OPEN: Too many failures!")
+            logger.warning("Circuit breaker OPEN: Too many failures!")
 
     def record_success(self):
         """Resets failure count and closes the circuit breaker."""

@@ -1,11 +1,9 @@
-import logging
 import time
 from collections import defaultdict
 
-from ...config import DequestConfig
+from dequest.utils import get_logger
 
-logger = logging.getLogger(__name__)
-logger.setLevel(DequestConfig.get_log_level())
+logger = get_logger()
 
 
 class InMemoryCacheDriver:
@@ -25,12 +23,9 @@ class InMemoryCacheDriver:
 
     def get_key(self, key):
         cached_entry = self.store[key]
-        return (
-            cached_entry["data"]
-            if cached_entry
-            and (
-                cached_entry["expires_at"] is None
-                or time.time() < cached_entry["expires_at"]
-            )
-            else None
-        )
+
+        if cached_entry and (cached_entry["expires_at"] is None or time.time() < cached_entry["expires_at"]):
+            logger.info("Cache hit for key: %s", key)
+            return cached_entry["data"]
+
+        return None

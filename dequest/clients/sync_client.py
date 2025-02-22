@@ -1,5 +1,4 @@
 import json
-import logging
 import time
 from collections.abc import Callable
 from functools import wraps
@@ -7,21 +6,15 @@ from typing import Optional, TypeVar, Union
 
 from requests.exceptions import RequestException, Timeout
 
+from dequest.cache import get_cache
 from dequest.circut_breaker import CircuitBreaker
+from dequest.config import DequestConfig
+from dequest.exceptions import CircuitBreakerOpenError, DequestError
 from dequest.http import sync_request
-
-from ..cache import get_cache
-from ..config import DequestConfig
-from ..exceptions import CircuitBreakerOpenError, DequestError
-from ..utils import generate_cache_key, map_to_dto
+from dequest.utils import generate_cache_key, get_logger, map_to_dto
 
 T = TypeVar("T")
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-
+logger = get_logger()
 cache = get_cache()
 
 
@@ -47,7 +40,7 @@ def perform_request(
         cache_key = generate_cache_key(url, params)
         cached_response = cache.get_key(cache_key)
         if cached_response:
-            logging.info(
+            logger.info(
                 "Cache hit for %s (provider: %s)",
                 url,
                 DequestConfig.CACHE_PROVIDER,
@@ -55,10 +48,10 @@ def perform_request(
             return json.loads(cached_response)
 
     response = sync_request(method, url, headers, json_body, params, data, timeout)
-
+    logger.debug("Response for %s: %s", url, response)
     if enable_cache:
         cache.set_key(cache_key, json.dumps(response), cache_ttl)
-        logging.info(
+        logger.info(
             "Cached response for %s in %s",
             url,
             DequestConfig.CACHE_PROVIDER,
@@ -124,7 +117,7 @@ def sync_client(
 
             # Circuit breaker logic (only applies if an instance od CircuitBreaker is provided)
             if circuit_breaker and not circuit_breaker.allow_request():
-                logging.warning("Circuit breaker blocking requests to %s", url)
+                logger.warning("Circuit breaker blocking requests to %s", url)
                 if circuit_breaker.fallback_function:
                     return circuit_breaker.fallback_function()
 
@@ -157,9 +150,9 @@ def sync_client(
                     )
 
                 except (RequestException, Timeout) as e:
-                    logging.error("Dequest client error: %s", e)
+                    logger.error("Dequest client error: %s", e)
                     if attempt < retries:
-                        logging.info(
+                        logger.info(
                             "Retrying in %s seconds... (Attempt %s/%s)",
                             retry_delay,
                             attempt,

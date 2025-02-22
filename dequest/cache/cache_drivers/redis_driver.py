@@ -1,11 +1,8 @@
-import logging
-
 import redis
 
-from ...config import DequestConfig
+from dequest.utils import get_logger
 
-logger = logging.getLogger(__name__)
-logger.setLevel(DequestConfig.get_log_level())
+logger = get_logger()
 
 
 class RedisDriver:
@@ -35,4 +32,9 @@ class RedisDriver:
         self.client.set(key, value, ex=expire)
 
     def get_key(self, key):
-        return self.client.get(key)
+        value = self.client.get(key)
+        if value is not None:
+            logger.info("Cache hit for key: %s", key)
+            return value
+
+        return None

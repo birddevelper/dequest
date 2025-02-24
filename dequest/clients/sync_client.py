@@ -18,7 +18,7 @@ logger = get_logger()
 cache = get_cache()
 
 
-def perform_request(
+def _perform_request(
     url: str,
     method: Optional[str] = "GET",
     headers: Optional[dict] = None,
@@ -87,6 +87,7 @@ def sync_client(
     :param api_key: Optional API key (static string or function returning a string).
     :param headers: Optional default headers (can be a dict or a function returning a dict).
     :param enable_cache: Whether to cache GET responses.
+    :param cache_ttl: Cache expiration time in seconds.
     :param circuit_breaker: Instance of CircuitBreaker (optional).
     """
 
@@ -115,17 +116,17 @@ def sync_client(
             if api_key_value:
                 request_headers["x-api-key"] = api_key_value
 
-            # Circuit breaker logic (only applies if an instance od CircuitBreaker is provided)
+            # Circuit breaker logic (only applies if an instance of CircuitBreaker is provided)
             if circuit_breaker and not circuit_breaker.allow_request():
                 logger.warning("Circuit breaker blocking requests to %s", url)
                 if circuit_breaker.fallback_function:
-                    return circuit_breaker.fallback_function()
+                    return circuit_breaker.fallback_function(*args, **kwargs)
 
                 raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {url} are blocked.")
 
             for attempt in range(1, retries + 1):
                 try:
-                    response_data = perform_request(
+                    response_data = _perform_request(
                         url,
                         method,
                         request_headers,

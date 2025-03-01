@@ -329,7 +329,7 @@ def test_sync_client_circute_breaker__recovery():
 
 @responses.activate
 def test_sync_client_circute_breaker__fallback():
-    def fallback_response():
+    def fallback_response(user_id):
         return {"message": "Service temporarily unavailable, please try later."}
 
     circut_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, fallback_function=fallback_response)

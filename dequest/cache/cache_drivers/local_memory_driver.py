@@ -28,4 +28,11 @@ class InMemoryCacheDriver:
             logger.info("Cache hit for key: %s", key)
             return cached_entry["data"]
 
+        if cached_entry and cached_entry["expires_at"] is not None and time.time() > cached_entry["expires_at"]:
+            logger.info("Cache expired for key: %s", key)
+            self.store.pop(key, None)
+
         return None
+
+    def clear(self):
+        self.store.clear()

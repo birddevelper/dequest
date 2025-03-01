@@ -38,3 +38,6 @@ class RedisDriver:
             return value
 
         return None
+
+    def clear(self):
+        self.client.flushdb()

@@ -1,7 +1,7 @@
 import pytest
 import responses
 
-from dequest.clients.sync_client import perform_request
+from dequest.clients._sync import _perform_request
 
 
 @responses.activate
@@ -21,7 +21,7 @@ def test_perform_request_no_cache():
     )
 
     for _ in range(4):
-        response = perform_request("https://api.example.com/students/1")
+        response = _perform_request("https://api.example.com/students/1")
 
         assert response == api_response
 
@@ -45,7 +45,7 @@ def test_perform_request_cache_enabled():
     )
 
     for _ in range(4):
-        response = perform_request(
+        response = _perform_request(
             "https://api.example.com/students/1",
             enable_cache=True,
         )
@@ -72,7 +72,7 @@ def test_perform_request_post_method():
     )
 
     for _ in range(4):
-        response = perform_request("https://api.example.com/students/1", method="POST")
+        response = _perform_request("https://api.example.com/students/1", method="POST")
 
         assert response == api_response
 
@@ -97,7 +97,7 @@ def test_perform_request_not_allowed_methods_with_cache(method):
     )
 
     with pytest.raises(ValueError):
-        perform_request(
+        _perform_request(
             "https://api.example.com/students/1",
             method=method,
             enable_cache=True,

@@ -1,10 +1,35 @@
+import asyncio
 import hashlib
 import inspect
 import json
 import logging
+import threading
 from typing import Any, Optional, TypeVar, get_type_hints
 
 T = TypeVar("T")  # Generic Type for DTO
+
+
+class AsyncLoopManager:
+    """Ensures a single background event loop runs in a dedicated thread."""
+
+    _background_loop: Optional[asyncio.AbstractEventLoop] = None
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_event_loop(cls) -> asyncio.AbstractEventLoop:
+        """Returns an event loop that runs forever in a background thread."""
+        try:
+            return asyncio.get_running_loop()
+        except RuntimeError:
+            with cls._lock:
+                if cls._background_loop is None:
+                    cls._background_loop = asyncio.new_event_loop()
+                    thread = threading.Thread(
+                        target=cls._background_loop.run_forever,
+                        daemon=True,
+                    )
+                    thread.start()
+                return cls._background_loop
 
 
 def generate_cache_key(url: str, params: Optional[dict[str, Any]]) -> str:

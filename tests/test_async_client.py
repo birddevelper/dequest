@@ -2,8 +2,10 @@ import asyncio
 
 import pytest
 
+from dequest.cache import get_cache
 from dequest.circut_breaker import CircuitBreaker
 from dequest.clients import async_client
+from dequest.utils import generate_cache_key
 
 
 class TestDTO:
@@ -84,3 +86,34 @@ async def test_async_client_with_dto_mapping(monkeypatch):
     fetch_data()
 
     await asyncio.wait_for(callback_called.wait(), timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_async_client_with_cache_hit(monkeypatch):
+    url = "https://api.example.com/data"
+    monkeypatch.setattr("dequest.clients._async.async_request", fake_succesful_async_request)
+    callback_called = asyncio.Event()
+    cache = get_cache()
+    cache.clear()
+    expected_cache_key = generate_cache_key(url, None)
+
+    async def my_callback(response):
+        assert response == {"key": "value"}
+        callback_called.set()
+
+    @async_client(callback=my_callback, enable_cache=True)
+    def fetch_data():
+        return {"url": url}
+
+    # First call, should not hit the cache
+    fetch_data()
+
+    await asyncio.wait_for(callback_called.wait(), timeout=2)
+
+    callback_called.clear()
+
+    # Now the cache should be set with the data, so the next call should hit the cache
+    fetch_data()
+
+    await asyncio.wait_for(callback_called.wait(), timeout=2)
+    assert cache.get_key(expected_cache_key) == '{"key": "value"}'

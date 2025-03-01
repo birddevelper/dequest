@@ -36,3 +36,6 @@ class CacheDirector:
 
     def get_key(self, key):
         return self.driver.get_key(key)
+
+    def clear(self):
+        return self.driver.clear()

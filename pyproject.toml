@@ -83,6 +83,7 @@ ignore = [
     "PLR0913",  # Too many arguments to function call ({c_args}/{max_args})
     "RUF012",   # Mutable class attributes should be annotated with `typing.ClassVar`
     "S324",     # Hash function
+    "C901",
     ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

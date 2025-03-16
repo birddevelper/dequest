@@ -3,11 +3,13 @@ Dequest is a full featured declarative rest client for Python that streamlines t
 
 ✅ Supports GET, POST, PUT, PATCH and DELETE requests
 
+✅ Sync & Async Client
+
 ✅ Optional Caching for GET Requests
 
 ✅ Authentication (Static & Dynamic)
 
-✅ Maps API response to DTO object and list (Supports unlimited nested DTOs)
+✅ Maps API Json/XML response to DTO object and list (Supports unlimited nested DTOs)
 
 ✅ Support query parameters, JSON body and Form-data
 
@@ -16,6 +18,9 @@ Dequest is a full featured declarative rest client for Python that streamlines t
 ✅ Allows Custom Headers per Request (Static & Dynamic)
 
 ✅ Circuit Breaker with Custom Fallback Function
+
+✅ Logging
+
 
 
 

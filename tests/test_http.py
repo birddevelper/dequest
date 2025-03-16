@@ -2,6 +2,7 @@ import httpx
 import pytest
 import respx
 
+from dequest.enums import ConsumerType
 from dequest.http import async_request
 
 
@@ -21,6 +22,7 @@ async def test_async_request_success():
             params=None,
             data=None,
             timeout=5,
+            consume=ConsumerType.JSON,
         )
 
     assert response == mock_response
@@ -42,6 +44,7 @@ async def test_async_request_failure():
                 params=None,
                 data=None,
                 timeout=5,
+                consume=ConsumerType.JSON,
             )
 
 
@@ -61,4 +64,5 @@ async def test_async_request_timeout():
                 params=None,
                 data=None,
                 timeout=1,
+                consume=ConsumerType.JSON,
             )

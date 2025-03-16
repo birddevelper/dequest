@@ -7,6 +7,7 @@ from responses.matchers import json_params_matcher, urlencoded_params_matcher
 
 from dequest.circut_breaker import CircuitBreaker, CircuitBreakerState
 from dequest.clients import sync_client
+from dequest.enums import ConsumerType
 from dequest.exceptions import DequestError
 
 
@@ -18,7 +19,7 @@ class UserDTO:
 
     def __init__(self, name, grade, city, birthday):
         self.name = name
-        self.grade = grade
+        self.grade = int(grade) if grade else grade
         self.city = city
         self.birthday = datetime.date.fromisoformat(birthday) if birthday else None
 
@@ -354,3 +355,28 @@ def test_sync_client_circute_breaker__fallback():
     assert circut_breaker.get_state() == CircuitBreakerState.OPEN
     assert api.call_count == expected_number_of_calls
     assert result == {"message": "Service temporarily unavailable, please try later."}
+
+
+@responses.activate
+def test_sync_client_xml_response():
+    data = "<student><name>Alice</name><grade>14</grade><city>New York</city><birthday>2000-01-01</birthday></student>"
+    expected_grade = 14
+    responses.add(
+        responses.GET,
+        "https://api.example.com/students/1",
+        body=data,
+        status=200,
+    )
+
+    @sync_client(UserDTO, consume=ConsumerType.XML)
+    def get_user(user_id):
+        return {
+            "url": f"https://api.example.com/students/{user_id}",
+        }
+
+    user = get_user(1)
+
+    assert user.name == "Alice"
+    assert user.grade == expected_grade
+    assert user.city == "New York"
+    assert user.birthday == datetime.date.fromisoformat("2000-01-01")

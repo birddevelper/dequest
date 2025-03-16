@@ -24,7 +24,8 @@ install_requires = [
     "requests",
     "redis",
     "responses",
-    "pytest",
+    "defusedxml",
+    "httpx",
 ]
 
 if __name__ == "__main__":

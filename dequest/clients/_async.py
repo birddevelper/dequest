@@ -9,9 +9,10 @@ from httpx import HTTPError, TimeoutException
 from dequest.cache import get_cache
 from dequest.circut_breaker import CircuitBreaker
 from dequest.config import DequestConfig
+from dequest.enums import ConsumerType
 from dequest.exceptions import CircuitBreakerOpenError, DequestError
 from dequest.http import async_request
-from dequest.utils import AsyncLoopManager, generate_cache_key, get_logger, map_to_dto
+from dequest.utils import AsyncLoopManager, generate_cache_key, get_logger, map_json_to_dto, map_xml_to_dto
 
 T = TypeVar("T")
 logger = get_logger()
@@ -28,6 +29,7 @@ async def _perform_request(
     timeout: int,
     enable_cache: bool,
     cache_ttl: Optional[int],
+    consume: ConsumerType,
 ):
     method = method.upper()
 
@@ -39,12 +41,16 @@ async def _perform_request(
         cached_response = cache.get_key(cache_key)
         if cached_response:
             logger.info("Cache hit for %s (provider: %s)", url, DequestConfig.CACHE_PROVIDER)
-            return json.loads(cached_response)
+            return json.loads(cached_response) if consume == ConsumerType.JSON else cached_response
 
-    response_data = await async_request(method, url, headers, json_body, params, data, timeout)
+    response_data = await async_request(method, url, headers, json_body, params, data, timeout, consume)
 
     if enable_cache:
-        cache.set_key(cache_key, json.dumps(response_data), cache_ttl)
+        cache.set_key(
+            cache_key,
+            json.dumps(response_data) if consume == ConsumerType.JSON else response_data,
+            cache_ttl,
+        )
         logger.info("Cached response for %s in %s", url, DequestConfig.CACHE_PROVIDER)
 
     return response_data
@@ -62,7 +68,8 @@ def async_client(
     enable_cache: bool = False,
     cache_ttl: Optional[int] = None,
     circuit_breaker: Optional[CircuitBreaker] = None,
-    callback: Optional[Callable[[Union[T, dict]], None]] = None,  # Optional callback for response
+    callback: Optional[Callable[[Union[T, dict]], None]] = None,
+    consume: ConsumerType = ConsumerType.JSON,
 ):
     """
     A decorator to make asynchronous HTTP requests without requiring the user to handle async execution.
@@ -80,6 +87,7 @@ def async_client(
     :param cache_ttl: Cache expiration time in seconds.
     :param circuit_breaker: Instance of CircuitBreaker (optional).
     :param callback: Optional function to process the response when available.
+    :param consume: Type of data to consume. ConsumerType.JSON, ConsumerType.XML or ConsumerType.TEXT
     """
 
     def decorator(func):
@@ -94,6 +102,9 @@ def async_client(
 
             if not isinstance(result, dict):
                 raise DequestError("Dequest client function must return a dictionary.")
+
+            if consume == ConsumerType.TEXT and dto_class:
+                raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
 
             url = result["url"]
             json_body = result.get("json_body", None)
@@ -133,6 +144,7 @@ def async_client(
                             timeout,
                             enable_cache,
                             cache_ttl,
+                            consume,
                         )
 
                         if circuit_breaker:
@@ -140,9 +152,9 @@ def async_client(
 
                         if dto_class:
                             dto_object = (
-                                [map_to_dto(dto_class, item) for item in response_data]
-                                if isinstance(response_data, list)
-                                else map_to_dto(dto_class, response_data)
+                                map_json_to_dto(dto_class, response_data)
+                                if consume == ConsumerType.JSON
+                                else map_xml_to_dto(dto_class, response_data)
                             )
                             if callback:
                                 asyncio.create_task(callback(dto_object))  # noqa: RUF006

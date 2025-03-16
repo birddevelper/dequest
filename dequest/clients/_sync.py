@@ -9,9 +9,10 @@ from requests.exceptions import RequestException, Timeout
 from dequest.cache import get_cache
 from dequest.circut_breaker import CircuitBreaker
 from dequest.config import DequestConfig
+from dequest.enums import ConsumerType
 from dequest.exceptions import CircuitBreakerOpenError, DequestError
 from dequest.http import sync_request
-from dequest.utils import generate_cache_key, get_logger, map_to_dto
+from dequest.utils import generate_cache_key, get_logger, map_json_to_dto, map_xml_to_dto
 
 T = TypeVar("T")
 logger = get_logger()
@@ -20,14 +21,15 @@ cache = get_cache()
 
 def _perform_request(
     url: str,
-    method: Optional[str] = "GET",
-    headers: Optional[dict] = None,
-    json_body: Optional[dict] = None,
-    params: Optional[dict] = None,
-    data: Optional[dict] = None,
-    timeout: Optional[int] = 60,
-    enable_cache: Optional[bool] = False,
-    cache_ttl: Optional[int] = None,
+    method: str,
+    headers: Optional[dict],
+    json_body: Optional[dict],
+    params: Optional[dict],
+    data: Optional[dict],
+    timeout: int,
+    enable_cache: bool,
+    cache_ttl: Optional[int],
+    consume: ConsumerType,
 ) -> dict:
     method = method.upper()
 
@@ -45,12 +47,12 @@ def _perform_request(
                 url,
                 DequestConfig.CACHE_PROVIDER,
             )
-            return json.loads(cached_response)
+            return json.loads(cached_response) if consume == ConsumerType.JSON else cached_response
 
-    response = sync_request(method, url, headers, json_body, params, data, timeout)
+    response = sync_request(method, url, headers, json_body, params, data, timeout, consume)
     logger.debug("Response for %s: %s", url, response)
     if enable_cache:
-        cache.set_key(cache_key, json.dumps(response), cache_ttl)
+        cache.set_key(cache_key, json.dumps(response) if consume == ConsumerType.JSON else response, cache_ttl)
         logger.info(
             "Cached response for %s in %s",
             url,
@@ -72,6 +74,7 @@ def sync_client(
     enable_cache: bool = False,
     cache_ttl: Optional[int] = None,
     circuit_breaker: Optional[CircuitBreaker] = None,
+    consume: ConsumerType = ConsumerType.JSON,
 ):
     """
     A decorator to make synchronous HTTP requests and map the response to a DTO class.
@@ -89,6 +92,7 @@ def sync_client(
     :param enable_cache: Whether to cache GET responses.
     :param cache_ttl: Cache expiration time in seconds.
     :param circuit_breaker: Instance of CircuitBreaker (optional).
+    :param consume: The type of data to consume. ConsumerType.JSON, ConsumerType.XML or ConsumerType.TEXT
     """
 
     def decorator(func):
@@ -106,6 +110,9 @@ def sync_client(
 
             if not isinstance(url, str):
                 raise DequestError("The 'url' key must contain a valid URL string.")
+
+            if consume == ConsumerType.TEXT and dto_class:
+                raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
 
             request_headers = headers() if callable(headers) else (headers or {})
             token_value = auth_token() if callable(auth_token) else auth_token
@@ -136,6 +143,7 @@ def sync_client(
                         timeout,
                         enable_cache,
                         cache_ttl,
+                        consume,
                     )
 
                     if circuit_breaker:
@@ -145,9 +153,9 @@ def sync_client(
                         return response_data
 
                     return (
-                        [map_to_dto(dto_class, item) for item in response_data]
-                        if isinstance(response_data, list)
-                        else map_to_dto(dto_class, response_data)
+                        map_json_to_dto(dto_class, response_data)
+                        if consume == ConsumerType.JSON
+                        else map_xml_to_dto(dto_class, response_data)
                     )
 
                 except (RequestException, Timeout) as e:

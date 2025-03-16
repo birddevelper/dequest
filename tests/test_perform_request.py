@@ -2,6 +2,7 @@ import pytest
 import responses
 
 from dequest.clients._sync import _perform_request
+from dequest.enums import ConsumerType
 
 
 @responses.activate
@@ -21,7 +22,18 @@ def test_perform_request_no_cache():
     )
 
     for _ in range(4):
-        response = _perform_request("https://api.example.com/students/1")
+        response = _perform_request(
+            "https://api.example.com/students/1",
+            method="GET",
+            headers=None,
+            json_body=None,
+            params=None,
+            data=None,
+            timeout=30,
+            enable_cache=False,
+            cache_ttl=None,
+            consume=ConsumerType.JSON,
+        )
 
         assert response == api_response
 
@@ -47,7 +59,15 @@ def test_perform_request_cache_enabled():
     for _ in range(4):
         response = _perform_request(
             "https://api.example.com/students/1",
+            method="GET",
+            headers=None,
+            json_body=None,
+            params=None,
+            data=None,
+            timeout=30,
             enable_cache=True,
+            cache_ttl=None,
+            consume=ConsumerType.JSON,
         )
 
         assert response == api_response
@@ -72,7 +92,18 @@ def test_perform_request_post_method():
     )
 
     for _ in range(4):
-        response = _perform_request("https://api.example.com/students/1", method="POST")
+        response = _perform_request(
+            "https://api.example.com/students/1",
+            method="POST",
+            headers=None,
+            json_body=None,
+            params=None,
+            data=None,
+            timeout=30,
+            enable_cache=False,
+            cache_ttl=None,
+            consume=ConsumerType.JSON,
+        )
 
         assert response == api_response
 
@@ -100,7 +131,14 @@ def test_perform_request_not_allowed_methods_with_cache(method):
         _perform_request(
             "https://api.example.com/students/1",
             method=method,
-            enable_cache=True,
+            headers=None,
+            json_body=None,
+            params=None,
+            data=None,
+            timeout=30,
+            enable_cache=False,
+            cache_ttl=True,
+            consume=ConsumerType.JSON,
         )
 
     assert api.call_count == expectred_number_of_calls

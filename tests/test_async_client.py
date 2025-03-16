@@ -15,7 +15,7 @@ class TestDTO:
         self.key = key
 
 
-async def fake_succesful_async_request(method, url, headers, json, params, data, timeout):
+async def fake_succesful_async_request(method, url, headers, json, params, data, timeout, consume):
     return {"key": "value"}
 
 

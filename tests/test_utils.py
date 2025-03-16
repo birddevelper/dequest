@@ -1,4 +1,4 @@
-from dequest.utils import map_to_dto
+from dequest.utils import map_json_to_dto
 
 
 class AddressDTO:
@@ -41,7 +41,7 @@ def test_mapping_nested_dto():
         "friends": ["Alice", "Bob"],
     }
 
-    user = map_to_dto(UserDTO, data)
+    user = map_json_to_dto(UserDTO, data)
 
     assert user.name == data["name"]
     assert isinstance(user.address, AddressDTO)
@@ -53,7 +53,7 @@ def test_mapping_nested_dto():
 def test_mapping_non_nested_dto():
     data = {"street": "123 Main St", "city": "Hometown"}
 
-    address = map_to_dto(AddressDTO, data)
+    address = map_json_to_dto(AddressDTO, data)
 
     assert address.street == data["street"]
     assert address.city == data["city"]
@@ -62,7 +62,7 @@ def test_mapping_non_nested_dto():
 def test_mapping_partial_dto_attributes_in_constructor():
     data = {"name": "PopCorn", "count": 2, "fee": 10.0}
 
-    order = map_to_dto(OrdertDTO, data)
+    order = map_json_to_dto(OrdertDTO, data)
 
     assert order.name == data["name"]
     assert order.count == data["count"]

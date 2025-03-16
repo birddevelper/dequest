@@ -42,7 +42,15 @@ def generate_cache_key(url: str, params: Optional[dict[str, Any]]) -> str:
     return hashlib.md5(cache_string.encode()).hexdigest()
 
 
-def map_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
+def map_json_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
+    return (
+        [_map_json_to_dto(dto_class, item) for item in data]
+        if isinstance(data, list)
+        else _map_json_to_dto(dto_class, data)
+    )
+
+
+def _map_json_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
     dto_fields = get_type_hints(dto_class).keys()  # Get type hints for all fields
     init_params = inspect.signature(dto_class).parameters  # Get __init__ parameters
 
@@ -57,7 +65,7 @@ def map_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
                 field_annotation,
                 "__annotations__",
             ):
-                mapped_data[key] = map_to_dto(field_annotation, field_value)
+                mapped_data[key] = map_json_to_dto(field_annotation, field_value)
             else:
                 mapped_data[key] = field_value
 

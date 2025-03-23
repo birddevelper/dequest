@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 from collections.abc import Callable
 from functools import wraps
@@ -12,7 +13,14 @@ from dequest.config import DequestConfig
 from dequest.enums import ConsumerType
 from dequest.exceptions import CircuitBreakerOpenError, DequestError
 from dequest.http import async_request
-from dequest.utils import AsyncLoopManager, generate_cache_key, get_logger, map_json_to_dto, map_xml_to_dto
+from dequest.utils import (
+    AsyncLoopManager,
+    extract_parameters,
+    generate_cache_key,
+    get_logger,
+    map_json_to_dto,
+    map_xml_to_dto,
+)
 
 T = TypeVar("T")
 logger = get_logger()
@@ -57,6 +65,7 @@ async def _perform_request(
 
 
 def async_client(
+    url: str,
     dto_class: Optional[type[T]] = None,
     method: str = "GET",
     timeout: int = 30,
@@ -75,6 +84,7 @@ def async_client(
     A decorator to make asynchronous HTTP requests without requiring the user to handle async execution.
     The decorated function should NOT be awaited. If awaiting is needed, use `sync_client` instead.
 
+    :param url: URL template with placeholders for path parameters.
     :param dto_class: The DTO class to map the response data.
     :param method: HTTP method (GET, POST, PUT, DELETE).
     :param timeout: Request timeout in seconds.
@@ -91,6 +101,8 @@ def async_client(
     """
 
     def decorator(func):
+        signature = inspect.signature(func)
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> None:
             """
@@ -98,21 +110,9 @@ def async_client(
             The user does NOT need to `await` the function.
             """
 
-            result = func(*args, **kwargs)
+            path_params, query_params, form_params, json_body = extract_parameters(signature, args, kwargs)
 
-            if not isinstance(result, dict):
-                raise DequestError("Dequest client function must return a dictionary.")
-
-            if consume == ConsumerType.TEXT and dto_class:
-                raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
-
-            url = result["url"]
-            json_body = result.get("json_body", None)
-            params = result.get("params", None)
-            data = result.get("data", None)
-
-            if not isinstance(url, str):
-                raise DequestError("The 'url' key must contain a valid URL string.")
+            formatted_url = url.format(**path_params)
 
             request_headers = headers() if callable(headers) else (headers or {})
             token_value = auth_token() if callable(auth_token) else auth_token
@@ -125,22 +125,22 @@ def async_client(
 
             async def run_request():
                 if circuit_breaker and not circuit_breaker.allow_request():
-                    logger.warning("Circuit breaker blocking requests to %s", url)
+                    logger.warning("Circuit breaker blocking requests to %s", formatted_url)
                     if circuit_breaker.fallback_function:
                         asyncio.create_task(circuit_breaker.fallback_function(*args, **kwargs))  # noqa: RUF006
                         return
 
-                    raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {url} are blocked.")
+                    raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.")
 
                 for attempt in range(1, retries + 1):
                     try:
                         response_data = await _perform_request(
-                            url,
+                            formatted_url,
                             method,
                             request_headers,
                             json_body,
-                            params,
-                            data,
+                            query_params,
+                            form_params,
                             timeout,
                             enable_cache,
                             cache_ttl,

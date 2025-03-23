@@ -136,23 +136,22 @@ def extract_parameters(signature, args, kwargs):
         param_args = get_args(param_type)  # Extract generic type arguments
         base_type = param_args[0] if param_args else any  # Default to Any if no type specified
 
-        if origin:
-            if param_value is not None and base_type is not any:
-                try:
-                    param_value = base_type(param_value)
-                except ValueError:
-                    raise TypeError(
-                        f"Invalid value for {param_name}: Expected {base_type}, got {type(param_value)}",
-                    ) from None
+        if param_value is not None and base_type is not any:
+            try:
+                param_value = base_type(param_value)
+            except ValueError:
+                raise TypeError(
+                    f"Invalid value for {param_name}: Expected {base_type}, got {type(param_value)}",
+                ) from None
 
-            if origin is PathParameter:
-                path_params[param_name] = param_value
-            elif origin is QueryParameter:
-                query_params[param_name] = param_value
-            elif origin is FormParameter:
-                if form_params is None:
-                    form_params = {}
-                form_params[param_name] = param_value
-            elif origin is JsonBody:
-                json_body = param_value
+        if origin is PathParameter:
+            path_params[param_name] = param_value
+        elif origin is QueryParameter:
+            query_params[param_name] = param_value
+        elif origin is FormParameter:
+            if form_params is None:
+                form_params = {}
+            form_params[param_name] = param_value
+        elif origin is JsonBody:
+            json_body = param_value
     return path_params, query_params, form_params, json_body

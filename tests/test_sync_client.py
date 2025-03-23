@@ -9,6 +9,7 @@ from dequest.circut_breaker import CircuitBreaker, CircuitBreakerState
 from dequest.clients import sync_client
 from dequest.enums import ConsumerType
 from dequest.exceptions import DequestError
+from dequest.parameter_types import FormParameter, JsonBody, PathParameter
 
 
 class UserDTO:
@@ -34,16 +35,14 @@ def test_sync_client():
     }
     responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         json=data,
         status=200,
     )
 
-    @sync_client(UserDTO)
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     user = get_user(1)
 
@@ -63,16 +62,14 @@ def test_sync_client_with_headers():
     }
     api = responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         json=data,
         status=200,
     )
 
-    @sync_client(UserDTO, headers={"X-Test-Header": "test"})
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, headers={"X-Test-Header": "test"})
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     user = get_user(1)
 
@@ -88,16 +85,14 @@ def test_sync_client_retry():
     expected_number_of_calls = 3
     api = responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         json={"message": "Internal Server Error"},
         status=500,
     )
 
-    @sync_client(UserDTO, retries=3)
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, retries=3)
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     with pytest.raises(DequestError):
         get_user(1)
@@ -116,16 +111,14 @@ def test_sync_client_with_cache():
     }
     api = responses.add(
         responses.GET,
-        "https://api.example.com/students/4",
+        "https://api.example.com/users/4",
         json=data,
         status=200,
     )
 
-    @sync_client(UserDTO, enable_cache=True)
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, enable_cache=True)
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     for _ in range(4):
         user = get_user(4)
@@ -148,16 +141,14 @@ def test_sync_client_no_dto_class():
     }
     responses.add(
         responses.GET,
-        "https://api.example.com/students/6",
+        "https://api.example.com/users/6",
         json=data,
         status=200,
     )
 
-    @sync_client()
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}")
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     user = get_user(user_id=6)
 
@@ -177,16 +168,19 @@ def test_sync_client_with_headers_and_auth():
     }
     api = responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         json=data,
         status=200,
     )
 
-    @sync_client(UserDTO, headers={"X-Test-Header": "test"}, auth_token="my_auth_token")  # noqa: S106
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        headers={"X-Test-Header": "test"},
+        auth_token="my_auth_token",  # noqa: S106
+    )
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     user = get_user(user_id=1)
 
@@ -207,7 +201,7 @@ def test_sync_client_post_method_with_form_data():
         "birthday": "2000-01-01",
     }
     api = responses.post(
-        "https://api.example.com/students",
+        "https://api.example.com/users",
         json={
             "name": data["name"],
             "grade": data["grade"],
@@ -218,12 +212,14 @@ def test_sync_client_post_method_with_form_data():
         match=[urlencoded_params_matcher(data)],
     )
 
-    @sync_client(UserDTO, method="POST")
-    def save_user(name, grade, city, birthday):
-        return {
-            "url": "https://api.example.com/students",
-            "data": {"name": name, "grade": grade, "city": city, "birthday": birthday},
-        }
+    @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
+    def save_user(
+        name: FormParameter[str],
+        grade: FormParameter[int],
+        city: FormParameter[str],
+        birthday: FormParameter[str],
+    ):
+        pass
 
     save_user(name="Alice", grade=14, city="New York", birthday="2000-01-01")
 
@@ -239,8 +235,9 @@ def test_sync_client_post_method_with_json_payload():
         "city": "New York",
         "birthday": "2000-01-01",
     }
+
     api = responses.post(
-        "https://api.example.com/students",
+        "https://api.example.com/users",
         json={
             "name": data["name"],
             "grade": data["grade"],
@@ -251,19 +248,11 @@ def test_sync_client_post_method_with_json_payload():
         match=[json_params_matcher(data)],
     )
 
-    @sync_client(UserDTO, method="POST")
-    def save_user(name, grade, city, birthday):
-        return {
-            "url": "https://api.example.com/students",
-            "json_body": {
-                "name": name,
-                "grade": grade,
-                "city": city,
-                "birthday": birthday,
-            },
-        }
+    @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
+    def save_user(user: JsonBody):
+        pass
 
-    save_user(name="Alice", grade=14, city="New York", birthday="2000-01-01")
+    save_user(data)
 
     assert api.calls[0].request.headers["Content-Type"] == "application/json"
     assert api.calls[0].request.body == b'{"name": "Alice", "grade": 14, "city": "New York", "birthday": "2000-01-01"}'
@@ -283,16 +272,19 @@ def test_sync_client_circute_breaker(client_calls, cb_is_open):
     client_retries = 2
     api = responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         json={"message": "Internal Server Error"},
         status=500,
     )
 
-    @sync_client(UserDTO, retries=client_retries, circuit_breaker=circut_breaker)
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        retries=client_retries,
+        circuit_breaker=circut_breaker,
+    )
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     for _ in range(client_calls):
         with pytest.raises(DequestError):
@@ -308,18 +300,16 @@ def test_sync_client_circute_breaker__recovery():
     expected_number_of_calls = 1
     api = responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         json={"message": "OK"},
         status=200,
     )
     circut_breaker.state = CircuitBreakerState.OPEN
     circut_breaker.last_failure_time = time.time()
 
-    @sync_client(circuit_breaker=circut_breaker)
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}", circuit_breaker=circut_breaker)
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     result = get_user(user_id=1)
 
@@ -337,18 +327,16 @@ def test_sync_client_circute_breaker__fallback():
     expected_number_of_calls = 0
     api = responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         json={"message": "Internal Server Error"},
         status=500,
     )
     circut_breaker.state = CircuitBreakerState.OPEN
     circut_breaker.last_failure_time = time.time()
 
-    @sync_client(circuit_breaker=circut_breaker)
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}", circuit_breaker=circut_breaker)
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     result = get_user(user_id=1)
 
@@ -363,16 +351,14 @@ def test_sync_client_xml_response():
     expected_grade = 14
     responses.add(
         responses.GET,
-        "https://api.example.com/students/1",
+        "https://api.example.com/users/1",
         body=data,
         status=200,
     )
 
-    @sync_client(UserDTO, consume=ConsumerType.XML)
-    def get_user(user_id):
-        return {
-            "url": f"https://api.example.com/students/{user_id}",
-        }
+    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, consume=ConsumerType.XML)
+    def get_user(user_id: PathParameter[int]):
+        pass
 
     user = get_user(1)
 
@@ -380,3 +366,55 @@ def test_sync_client_xml_response():
     assert user.grade == expected_grade
     assert user.city == "New York"
     assert user.birthday == datetime.date.fromisoformat("2000-01-01")
+
+
+@responses.activate
+def test_sync_client_path_parameter_without_type():
+    data = {
+        "name": "Alice",
+        "grade": 14,
+        "city": "New York",
+        "birthday": "2000-01-01",
+    }
+    responses.add(
+        responses.GET,
+        "https://api.example.com/users/1",
+        json=data,
+        status=200,
+    )
+
+    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
+    def get_user(user_id: PathParameter):
+        pass
+
+    user = get_user("1")
+
+    assert user.name == data["name"]
+    assert user.grade == data["grade"]
+    assert user.city == data["city"]
+    assert user.birthday == datetime.date.fromisoformat(data["birthday"])
+
+
+@responses.activate
+def test_sync_client_path_parameter_type_not_match():
+    data = {
+        "name": "Alice",
+        "grade": 14,
+        "city": "New York",
+        "birthday": "2000-01-01",
+    }
+    responses.add(
+        responses.GET,
+        "https://api.example.com/users/1",
+        json=data,
+        status=200,
+    )
+
+    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
+    def get_user(user_id: PathParameter[int]):
+        pass
+
+    with pytest.raises(TypeError) as e:
+        get_user("elphant")
+
+    assert "Invalid value for user_id: Expected <class 'int'>, got <class 'str'>" in str(e)

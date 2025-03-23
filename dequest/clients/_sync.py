@@ -1,3 +1,4 @@
+import inspect
 import json
 import time
 from collections.abc import Callable
@@ -12,7 +13,7 @@ from dequest.config import DequestConfig
 from dequest.enums import ConsumerType
 from dequest.exceptions import CircuitBreakerOpenError, DequestError
 from dequest.http import sync_request
-from dequest.utils import generate_cache_key, get_logger, map_json_to_dto, map_xml_to_dto
+from dequest.utils import extract_parameters, generate_cache_key, get_logger, map_json_to_dto, map_xml_to_dto
 
 T = TypeVar("T")
 logger = get_logger()
@@ -63,6 +64,7 @@ def _perform_request(
 
 
 def sync_client(
+    url: str,
     dto_class: Optional[type[T]] = None,
     method: str = "GET",
     timeout: int = 30,
@@ -77,11 +79,12 @@ def sync_client(
     consume: ConsumerType = ConsumerType.JSON,
 ):
     """
-    A decorator to make synchronous HTTP requests and map the response to a DTO class.
-    Supports authentication (static and dynamic), retries, logging, query parameters, custom headers,
-    timeout, circuit breaker and caching.
+    A declarative decorator to make synchronous HTTP requests.
+    Supports authentication (static and dynamic), retries, logging, query parameters, form parameters,
+    timeout, circuit breaker, and caching.
 
-    :param dto_class: The DTO class to map the response data.
+    :param url: URL template with placeholders for path parameters.
+    :param dto_class: DTO class to map response data.
     :param method: HTTP method (GET, POST, PUT, DELETE).
     :param timeout: Request timeout in seconds.
     :param retries: Number of retries on failure.
@@ -92,27 +95,20 @@ def sync_client(
     :param enable_cache: Whether to cache GET responses.
     :param cache_ttl: Cache expiration time in seconds.
     :param circuit_breaker: Instance of CircuitBreaker (optional).
-    :param consume: The type of data to consume. ConsumerType.JSON, ConsumerType.XML or ConsumerType.TEXT
+    :param consume: The type of data to consume (JSON, XML, TEXT).
     """
 
     def decorator(func):
+        signature = inspect.signature(func)
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> Optional[T]:
-            result = func(*args, **kwargs)
-
-            if not isinstance(result, dict):
-                raise DequestError("Dequest client function must return a dictionary.")
-
-            url = result["url"]
-            json_body = result.get("json_body", None)
-            params = result.get("params", None)
-            data = result.get("data", None)
-
-            if not isinstance(url, str):
-                raise DequestError("The 'url' key must contain a valid URL string.")
-
             if consume == ConsumerType.TEXT and dto_class:
                 raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
+
+            path_params, query_params, form_params, json_body = extract_parameters(signature, args, kwargs)
+
+            formatted_url = url.format(**path_params)
 
             request_headers = headers() if callable(headers) else (headers or {})
             token_value = auth_token() if callable(auth_token) else auth_token
@@ -125,21 +121,21 @@ def sync_client(
 
             # Circuit breaker logic (only applies if an instance of CircuitBreaker is provided)
             if circuit_breaker and not circuit_breaker.allow_request():
-                logger.warning("Circuit breaker blocking requests to %s", url)
+                logger.warning("Circuit breaker blocking requests to %s", formatted_url)
                 if circuit_breaker.fallback_function:
                     return circuit_breaker.fallback_function(*args, **kwargs)
 
-                raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {url} are blocked.")
+                raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.")
 
             for attempt in range(1, retries + 1):
                 try:
                     response_data = _perform_request(
-                        url,
+                        formatted_url,
                         method,
                         request_headers,
                         json_body,
-                        params,
-                        data,
+                        query_params,
+                        form_params,
                         timeout,
                         enable_cache,
                         cache_ttl,

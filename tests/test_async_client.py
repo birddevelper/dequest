@@ -5,6 +5,7 @@ import pytest
 from dequest.cache import get_cache
 from dequest.circut_breaker import CircuitBreaker
 from dequest.clients import async_client
+from dequest.parameter_types import FormParameter, JsonBody, QueryParameter
 from dequest.utils import generate_cache_key
 
 
@@ -19,6 +20,18 @@ async def fake_succesful_async_request(method, url, headers, json, params, data,
     return {"key": "value"}
 
 
+async def fake_succesful_async_request_for_json(method, url, headers, json, params, data, timeout, consume):
+    return json
+
+
+async def fake_succesful_async_request_for_params(method, url, headers, json, params, data, timeout, consume):
+    return params
+
+
+async def fake_succesful_async_request_for_data(method, url, headers, json, params, data, timeout, consume):
+    return data
+
+
 @pytest.mark.asyncio
 async def test_async_client_with_callback(monkeypatch):
     url = "https://api.example.com/data"
@@ -31,11 +44,74 @@ async def test_async_client_with_callback(monkeypatch):
         assert response == expected_response
         callback_called.set()
 
-    @async_client(callback=my_callback)
+    @async_client(url=url, callback=my_callback)
     def fetch_data():
-        return {"url": url}
+        pass
 
     fetch_data()
+
+    await asyncio.wait_for(callback_called.wait(), timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_async_client_with_json_body(monkeypatch):
+    url = "https://api.example.com/data"
+    expected_response = {"my_key": "test_value", "my_key2": "test_value2"}
+
+    monkeypatch.setattr("dequest.clients._async.async_request", fake_succesful_async_request_for_json)
+    callback_called = asyncio.Event()
+
+    async def my_callback(response):
+        assert response == expected_response
+        callback_called.set()
+
+    @async_client(url=url, callback=my_callback)
+    def fetch_data(data: JsonBody):
+        pass
+
+    fetch_data(expected_response)
+
+    await asyncio.wait_for(callback_called.wait(), timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_async_client_with_query_params(monkeypatch):
+    url = "https://api.example.com/data"
+    expected_response = {"user_id": 1, "username": "test_user"}
+
+    monkeypatch.setattr("dequest.clients._async.async_request", fake_succesful_async_request_for_params)
+    callback_called = asyncio.Event()
+
+    async def my_callback(response):
+        assert response == expected_response
+        callback_called.set()
+
+    @async_client(url=url, callback=my_callback)
+    def fetch_data(user_id: QueryParameter[int], username: QueryParameter[str]):
+        pass
+
+    fetch_data(expected_response["user_id"], expected_response["username"])
+
+    await asyncio.wait_for(callback_called.wait(), timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_async_client_with_form_data(monkeypatch):
+    url = "https://api.example.com/data"
+    expected_response = {"user_id": 1, "username": "test_user"}
+
+    monkeypatch.setattr("dequest.clients._async.async_request", fake_succesful_async_request_for_data)
+    callback_called = asyncio.Event()
+
+    async def my_callback(response):
+        assert response == expected_response
+        callback_called.set()
+
+    @async_client(url=url, callback=my_callback)
+    def fetch_data(user_id: FormParameter[int], username: FormParameter[str]):
+        pass
+
+    fetch_data(expected_response["user_id"], expected_response["username"])
 
     await asyncio.wait_for(callback_called.wait(), timeout=2)
 
@@ -56,9 +132,9 @@ async def test_async_client_with_circuit_breaker_fallback(monkeypatch):
     async def my_callback(response):
         callback_called.set()
 
-    @async_client(callback=my_callback, circuit_breaker=circuit_breaker)
+    @async_client(url=url, callback=my_callback, circuit_breaker=circuit_breaker)
     def fetch_data():
-        return {"url": url}
+        pass
 
     fetch_data()
 
@@ -79,9 +155,9 @@ async def test_async_client_with_dto_mapping(monkeypatch):
         assert response.key == "value"
         callback_called.set()
 
-    @async_client(callback=my_callback, dto_class=TestDTO)
+    @async_client(url=url, callback=my_callback, dto_class=TestDTO)
     def fetch_data():
-        return {"url": url}
+        pass
 
     fetch_data()
 
@@ -95,15 +171,15 @@ async def test_async_client_with_cache_hit(monkeypatch):
     callback_called = asyncio.Event()
     cache = get_cache()
     cache.clear()
-    expected_cache_key = generate_cache_key(url, None)
+    expected_cache_key = generate_cache_key(url, {})
 
     async def my_callback(response):
         assert response == {"key": "value"}
         callback_called.set()
 
-    @async_client(callback=my_callback, enable_cache=True)
+    @async_client(url=url, callback=my_callback, enable_cache=True)
     def fetch_data():
-        return {"url": url}
+        pass
 
     # First call, should not hit the cache
     fetch_data()

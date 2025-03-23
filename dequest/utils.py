@@ -4,10 +4,12 @@ import inspect
 import json
 import logging
 import threading
-from typing import Any, Optional, TypeVar, get_type_hints
+from typing import Any, Optional, TypeVar, get_args, get_origin, get_type_hints
 from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree
+
+from dequest.parameter_types import FormParameter, JsonBody, PathParameter, QueryParameter
 
 T = TypeVar("T")  # Generic Type for DTO
 
@@ -115,3 +117,41 @@ def _parse_element(dto_class: type[T], element: Element) -> T:
     init_data = {k: v for k, v in mapped_data.items() if k in init_params}
 
     return dto_class(**init_data)
+
+
+def extract_parameters(signature, args, kwargs):
+    bound_args = signature.bind(*args, **kwargs)
+    bound_args.apply_defaults()
+
+    path_params = {}
+    query_params = {}
+    form_params = None
+    json_body = None
+
+    for param_name, param in signature.parameters.items():
+        param_value = bound_args.arguments.get(param_name)
+        param_type = param.annotation
+
+        origin = get_origin(param_type) or param_type
+        param_args = get_args(param_type)  # Extract generic type arguments
+        base_type = param_args[0] if param_args else any  # Default to Any if no type specified
+
+        if param_value is not None and base_type is not any:
+            try:
+                param_value = base_type(param_value)
+            except ValueError:
+                raise TypeError(
+                    f"Invalid value for {param_name}: Expected {base_type}, got {type(param_value)}",
+                ) from None
+
+        if origin is PathParameter:
+            path_params[param_name] = param_value
+        elif origin is QueryParameter:
+            query_params[param_name] = param_value
+        elif origin is FormParameter:
+            if form_params is None:
+                form_params = {}
+            form_params[param_name] = param_value
+        elif origin is JsonBody:
+            json_body = param_value
+    return path_params, query_params, form_params, json_body

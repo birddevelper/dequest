@@ -21,11 +21,10 @@ setup_args = {
 }
 
 install_requires = [
-    "requests",
-    "redis",
-    "responses",
-    "defusedxml",
-    "httpx",
+    "requests>=2.32.3",
+    "redis>=5.2.1",
+    "defusedxml>=0.7.1",
+    "httpx>=0.28.1",
 ]
 
 if __name__ == "__main__":

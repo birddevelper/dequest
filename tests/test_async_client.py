@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from dequest.cache import get_cache
-from dequest.circut_breaker import CircuitBreaker
+from dequest.circuit_breaker import CircuitBreaker
 from dequest.clients import async_client
 from dequest.parameter_types import FormParameter, JsonBody, QueryParameter
 from dequest.utils import generate_cache_key
@@ -66,10 +66,10 @@ async def test_async_client_with_json_body(monkeypatch):
         callback_called.set()
 
     @async_client(url=url, callback=my_callback)
-    def fetch_data(data: JsonBody):
+    def fetch_data(my_key_1: JsonBody["my_key"], my_key_2: JsonBody["my_key2"]):  # noqa: F821
         pass
 
-    fetch_data(expected_response)
+    fetch_data(expected_response["my_key"], expected_response["my_key2"])
 
     await asyncio.wait_for(callback_called.wait(), timeout=2)
 
@@ -108,7 +108,7 @@ async def test_async_client_with_form_data(monkeypatch):
         callback_called.set()
 
     @async_client(url=url, callback=my_callback)
-    def fetch_data(user_id: FormParameter[int], username: FormParameter[str]):
+    def fetch_data(user_id: FormParameter[int], user_name: FormParameter[str, "username"]):  # noqa: F821
         pass
 
     fetch_data(expected_response["user_id"], expected_response["username"])

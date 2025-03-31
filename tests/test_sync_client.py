@@ -5,10 +5,10 @@ import pytest
 import responses
 from responses.matchers import json_params_matcher, urlencoded_params_matcher
 
-from dequest.circut_breaker import CircuitBreaker, CircuitBreakerState
+from dequest.circuit_breaker import CircuitBreaker, CircuitBreakerState
 from dequest.clients import sync_client
 from dequest.enums import ConsumerType
-from dequest.exceptions import DequestError
+from dequest.exceptions import DequestError, InvalidParameterValueError
 from dequest.parameter_types import FormParameter, JsonBody, PathParameter
 
 
@@ -125,7 +125,8 @@ def test_sync_client_with_cache():
 
         assert user.name == data["name"]
         assert user.grade == data["grade"]
-        assert user.city == data["city"]
+        assert user.city == data["city"]  # Perform type conversion if base_type is provided (and not Any)
+
         assert user.birthday == datetime.date.fromisoformat(data["birthday"])
 
     assert api.call_count == expected_number_of_calls
@@ -249,10 +250,10 @@ def test_sync_client_post_method_with_json_payload():
     )
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
-    def save_user(user: JsonBody):
+    def save_user(name: JsonBody, grade: JsonBody, city_name: JsonBody["city"], birthday: JsonBody):  # noqa: F821
         pass
 
-    save_user(data)
+    save_user(name="Alice", grade=14, city_name="New York", birthday="2000-01-01")
 
     assert api.calls[0].request.headers["Content-Type"] == "application/json"
     assert api.calls[0].request.body == b'{"name": "Alice", "grade": 14, "city": "New York", "birthday": "2000-01-01"}'
@@ -414,7 +415,77 @@ def test_sync_client_path_parameter_type_not_match():
     def get_user(user_id: PathParameter[int]):
         pass
 
-    with pytest.raises(TypeError) as e:
+    with pytest.raises(InvalidParameterValueError) as e:
         get_user("elphant")
 
     assert "Invalid value for user_id: Expected <class 'int'>, got <class 'str'>" in str(e)
+
+
+@responses.activate
+def test_sync_client_post_method_with_param_type_and_mapped_form_data():
+    data = {
+        "name": "Alice",
+        "grade": "14",
+        "city": "New York",
+        "birthday": "2000-01-01",
+    }
+    api = responses.post(
+        "https://api.example.com/users",
+        json={
+            "name": data["name"],
+            "grade": data["grade"],
+            "city": data["city"],
+            "birthday": data["birthday"],
+        },
+        status=200,
+        match=[urlencoded_params_matcher(data)],
+    )
+
+    @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
+    def save_user(
+        full_name: FormParameter[str, "name"],  # noqa: F821
+        grade: FormParameter[int],
+        city: FormParameter[str],
+        birthday: FormParameter[str],
+    ):
+        pass
+
+    save_user(full_name="Alice", grade=14, city="New York", birthday="2000-01-01")
+
+    assert api.calls[0].request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert api.calls[0].request.body == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"
+
+
+@responses.activate
+def test_sync_client_post_method_with_only_mapped_form_data():
+    data = {
+        "name": "Alice",
+        "grade": "14",
+        "city": "New York",
+        "birthday": "2000-01-01",
+    }
+    api = responses.post(
+        "https://api.example.com/users",
+        json={
+            "name": data["name"],
+            "grade": data["grade"],
+            "city": data["city"],
+            "birthday": data["birthday"],
+        },
+        status=200,
+        match=[urlencoded_params_matcher(data)],
+    )
+
+    @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
+    def save_user(
+        full_name: FormParameter[{"alias": "name"}],  # noqa: F821
+        grade: FormParameter[int, "grade"],  # noqa: F821
+        city_name: FormParameter["city"],  # noqa: F821
+        birthday: FormParameter[str,],
+    ):
+        pass
+
+    save_user(full_name="Alice", grade=14, city_name="New York", birthday="2000-01-01")
+
+    assert api.calls[0].request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert api.calls[0].request.body == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"

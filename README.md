@@ -19,6 +19,8 @@ Dequest is a full featured declarative rest client for Python that streamlines t
 
 ✅ Circuit Breaker with Custom Fallback Function
 
+✅ API parameter mapping and type checking
+
 ✅ Logging
 
 
@@ -37,6 +39,7 @@ Declare a function with `@sync_client` decorator and pass the `dto_class` parame
 
 ```python
 from dequest.clients import sync_client
+from dequest.parameter_types import PathParameter
 
 class UserDto:
     name: str
@@ -49,27 +52,23 @@ class UserDto:
         self.friends = friends
 
 
-@sync_client(dto_class=UserDto)
-def get_user(user_id):
-    return {
-        "url": f"https://jsonplaceholder.typicode.com/users/{user_id}",
-    }
+@sync_client(url="https://jsonplaceholder.typicode.com/users/{user_id}", dto_class=UserDto)
+def get_user(user_id: PathParameter) -> UserDto:
+    pass
 
 user = get_user(1)
 ```
 
-Retrieving a list of users by city name using query parameters:
+Retrieving a list of users by city name using query parameters, you also can map the parameter name to the API's actuall query parameter name:
 
 ```python
-@sync_client(dto_class=UserDto)
-def get_users(city_name) -> List[UserDto]:
-    return {
-        "url": f"https://jsonplaceholder.typicode.com/users/",
-        "params": {"city": city_name},  # Query parameter to filter by city name
-    }
+@sync_client(url="https://jsonplaceholder.typicode.com/users", dto_class=UserDto)
+def get_users(city_name:QueryParameter[str, "cityName"]) -> List[UserDto]:
+    pass
 
 users = get_users("Paris")
 ```
+The request will be sent to API as `https://jsonplaceholder.typicode.com/users?cityName=Paris`.
 
 ### Cache
 
@@ -81,11 +80,14 @@ from dequest.config import DequestConfig
 
 DequestConfig.cache_driver = "redis"
 
-@sync_client(dto_class=UserDto, enable_cache=True, cache_ttl=300)
-def get_user(user_id):
-    return {
-        "url": f"https://jsonplaceholder.typicode.com/users/{user_id}",
-    }
+@sync_client(
+    url="https://jsonplaceholder.typicode.com/users/{user_id}",
+    dto_class=UserDto,
+    enable_cache=True,
+    cache_ttl=300
+)
+def get_user(user_id: PathParameter[int]) -> UserDto:
+    pass
 
 user = get_user(1)
 ```
@@ -99,11 +101,13 @@ Static authentication:
 ```python
 from dequest.clients import sync_client
 
-@sync_client(dto_class=UserDto, auth_token="my_auth_token")
-def get_user(user_id) -> UserDto:
-    return {
-        "url": f"https://jsonplaceholder.typicode.com/users/{user_id}",
-    }
+@sync_client(
+    url="https://jsonplaceholder.typicode.com/users/{user_id}",
+    dto_class=UserDto,
+    auth_token="my_auth_token"
+)
+def get_user(user_id: PathParameter[int]) -> UserDto:
+    pass
 
 user = get_user(1)
 ```
@@ -116,12 +120,34 @@ from dequest.clients import sync_client
 def get_auth_token():
     return "my_auth_token"
 
-@sync_client(dto_class=UserDto, auth_token=get_auth_token)
-def get_user(user_id):
-    return {
-        "url": f"https://jsonplaceholder.typicode.com/users/{user_id}",
-    }
+@sync_client(url="https://jsonplaceholder.typicode.com/users/{user_id}", dto_class=UserDto, auth_token=get_auth_token)
+def get_user(user_id: PathParameter[int]):
+    pass
+
+user = get_user(1)
 ```
+
+Post Method:
+
+```python
+from dequest.clients import sync_client
+
+@sync_client(
+    url="https://example.com/users",
+    dto_class=UserDto,
+    method="POST",
+)
+def create_user(name: JsonBody[str], address: JsonBody[str]) -> UserDto:
+    pass
+
+post = create_post("title", "body")
+```
+The reqest will be equal to:
+
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"name": "title", "address": "body"}' https://example.com/users
+```
+
 
 ## License
 

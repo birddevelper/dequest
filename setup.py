@@ -8,7 +8,7 @@ with Path.open("README.md") as readme_file:
 
 setup_args = {
     "name": "dequest",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Declarative rest client",
     "long_description_content_type": "text/markdown",
     "long_description": README,
@@ -21,11 +21,10 @@ setup_args = {
 }
 
 install_requires = [
-    "requests",
-    "redis",
-    "responses",
-    "defusedxml",
-    "httpx",
+    "requests>=2.32.3",
+    "redis>=5.2.1",
+    "defusedxml>=0.7.1",
+    "httpx>=0.28.1",
 ]
 
 if __name__ == "__main__":

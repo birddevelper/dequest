@@ -4,11 +4,12 @@ import inspect
 import json
 import logging
 import threading
-from typing import Any, Optional, TypeVar, get_args, get_origin, get_type_hints
+from typing import Any, Optional, TypeVar, get_origin, get_type_hints
 from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree
 
+from dequest.exceptions import InvalidParameterValueError
 from dequest.parameter_types import FormParameter, JsonBody, PathParameter, QueryParameter
 
 T = TypeVar("T")  # Generic Type for DTO
@@ -119,39 +120,50 @@ def _parse_element(dto_class: type[T], element: Element) -> T:
     return dto_class(**init_data)
 
 
-def extract_parameters(signature, args, kwargs):
+def extract_parameters(signature: inspect.Signature, args: tuple, kwargs: dict):
     bound_args = signature.bind(*args, **kwargs)
     bound_args.apply_defaults()
 
     path_params = {}
     query_params = {}
-    form_params = None
-    json_body = None
+    form_params = {}
+    json_body = {}
 
     for param_name, param in signature.parameters.items():
         param_value = bound_args.arguments.get(param_name)
-        param_type = param.annotation
+        param_annotation = param.annotation
 
-        origin = get_origin(param_type) or param_type
-        param_args = get_args(param_type)  # Extract generic type arguments
-        base_type = param_args[0] if param_args else any  # Default to Any if no type specified
+        # If no annotation is provided, skip this parameter.
+        if param_annotation is inspect.Parameter.empty:
+            continue
 
-        if param_value is not None and base_type is not any:
+        origin = get_origin(param_annotation) or param_annotation
+
+        base_type = None
+        alias = None
+
+        if hasattr(param_annotation, "__base_type__"):
+            base_type = param_annotation.__base_type__
+            alias = param_annotation.__alias__
+
+        param_key = alias if alias is not None else param_name
+
+        # If a base type is provided, attempt conversion.
+        if param_value is not None and base_type is not None:
             try:
                 param_value = base_type(param_value)
-            except ValueError:
-                raise TypeError(
+            except (ValueError, TypeError):
+                raise InvalidParameterValueError(
                     f"Invalid value for {param_name}: Expected {base_type}, got {type(param_value)}",
                 ) from None
 
-        if origin is PathParameter:
-            path_params[param_name] = param_value
-        elif origin is QueryParameter:
-            query_params[param_name] = param_value
-        elif origin is FormParameter:
-            if form_params is None:
-                form_params = {}
-            form_params[param_name] = param_value
-        elif origin is JsonBody:
-            json_body = param_value
+        if issubclass(origin, PathParameter):
+            path_params[param_key] = param_value
+        elif issubclass(origin, QueryParameter):
+            query_params[param_key] = param_value
+        elif issubclass(origin, FormParameter):
+            form_params[param_key] = param_value
+        elif issubclass(origin, JsonBody):
+            json_body[param_key] = param_value
+
     return path_params, query_params, form_params, json_body

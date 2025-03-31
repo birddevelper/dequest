@@ -107,7 +107,6 @@ def sync_client(
                 raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
 
             path_params, query_params, form_params, json_body = extract_parameters(signature, args, kwargs)
-
             formatted_url = url.format(**path_params)
 
             request_headers = headers() if callable(headers) else (headers or {})

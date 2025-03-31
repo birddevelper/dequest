@@ -1,21 +1,20 @@
-from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
-class ParameterParser(ABC):
-    @abstractmethod
-    def parse(self, params: Any) -> tuple[Optional[type], Optional[str]]: ...
+class ParameterParser(Protocol):
+    @staticmethod
+    def parse(params: Any) -> tuple[Optional[type], Optional[str]]: ...
 
 
-class DictParser(ParameterParser):
+class DictParser:
     @staticmethod
     def parse(params: dict) -> tuple[Optional[type], Optional[str]]:
         return params.get("base_type"), params.get("alias")
 
 
-class TupleParser(ParameterParser):
+class TupleParser:
     @staticmethod
     def parse(params: tuple) -> tuple[Optional[type], Optional[str]]:
         length = len(params)
@@ -26,7 +25,7 @@ class TupleParser(ParameterParser):
         raise TypeError("Expected at most 2 parameters: base_type and optional alias")
 
 
-class DefaultParser(ParameterParser):
+class DefaultParser:
     @staticmethod
     def parse(params: Any) -> tuple[Optional[type], Optional[str]]:
         return (None, params) if isinstance(params, str) else (params, None)

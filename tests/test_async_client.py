@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from dequest.cache import get_cache
-from dequest.circut_breaker import CircuitBreaker
+from dequest.circuit_breaker import CircuitBreaker
 from dequest.clients import async_client
 from dequest.parameter_types import FormParameter, JsonBody, QueryParameter
 from dequest.utils import generate_cache_key

@@ -8,7 +8,7 @@ from typing import Optional, TypeVar, Union
 from requests.exceptions import RequestException, Timeout
 
 from dequest.cache import get_cache
-from dequest.circut_breaker import CircuitBreaker
+from dequest.circuit_breaker import CircuitBreaker
 from dequest.config import DequestConfig
 from dequest.enums import ConsumerType
 from dequest.exceptions import CircuitBreakerOpenError, DequestError

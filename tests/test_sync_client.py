@@ -5,7 +5,7 @@ import pytest
 import responses
 from responses.matchers import json_params_matcher, urlencoded_params_matcher
 
-from dequest.circut_breaker import CircuitBreaker, CircuitBreakerState
+from dequest.circuit_breaker import CircuitBreaker, CircuitBreakerState
 from dequest.clients import sync_client
 from dequest.enums import ConsumerType
 from dequest.exceptions import DequestError, InvalidParameterValueError

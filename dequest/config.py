@@ -7,6 +7,3 @@ class DequestConfig:
     REDIS_DB = 0
     REDIS_PASSWORD = None
     REDIS_SSL = False
-
-    # Logging Settings
-    LOG_LEVEL = "INFO"

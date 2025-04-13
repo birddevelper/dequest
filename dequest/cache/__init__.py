@@ -1,5 +1,5 @@
-from .cache_director import CacheDirector
+from ._cache import Cache
 
 
-def get_cache() -> CacheDirector:
-    return CacheDirector()
+def get_cache() -> Cache:
+    return Cache()

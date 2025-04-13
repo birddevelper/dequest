@@ -27,12 +27,11 @@ def test_get_key():
     assert cache.get_key("key") == "value"
 
 
-def test_expire_key():
+def test_delete_key():
     cache = InMemoryCacheDriver()
     cache.set_key("key", "value")
 
-    cache.expire_key("key", 0)
-    time.sleep(1)
+    cache.delete_key("key")
 
     assert cache.get_key("key") is None
 

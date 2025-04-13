@@ -11,8 +11,8 @@ class InMemoryCacheDriver:
         self.store = defaultdict(dict)
         logger.info("Local memory cache initialized")
 
-    def expire_key(self, key, seconds):
-        self.store[key]["expires_at"] = int(time.time()) + seconds
+    def delete_key(self, key):
+        self.store.pop(key, None)
 
     def set_key(self, key, value, expire=None):
         expires_at = None

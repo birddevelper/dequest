@@ -10,9 +10,8 @@ from httpx import HTTPError, TimeoutException
 from dequest.cache import get_cache
 from dequest.circuit_breaker import CircuitBreaker
 from dequest.config import DequestConfig
-from dequest.enums import ConsumerType
 from dequest.exceptions import CircuitBreakerOpenError, DequestError
-from dequest.http import async_request
+from dequest.http import ConsumerType, async_request
 from dequest.utils import (
     AsyncLoopManager,
     extract_parameters,

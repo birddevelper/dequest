@@ -2,7 +2,7 @@ import pytest
 import responses
 
 from dequest.clients._sync import _perform_request
-from dequest.enums import ConsumerType
+from dequest.http import ConsumerType
 
 
 @responses.activate

@@ -7,8 +7,8 @@ from responses.matchers import json_params_matcher, urlencoded_params_matcher
 
 from dequest.circuit_breaker import CircuitBreaker, CircuitBreakerState
 from dequest.clients import sync_client
-from dequest.enums import ConsumerType
 from dequest.exceptions import DequestError, InvalidParameterValueError
+from dequest.http import ConsumerType
 from dequest.parameter_types import FormParameter, JsonBody, PathParameter
 
 

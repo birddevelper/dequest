@@ -1,11 +1,11 @@
 # Dequest
-Dequest is a full featured declarative rest client for Python that streamlines the creation of HTTP requests and retrieves the results as DTO. Here is the package's features:
+Dequest is a full featured declarative HTTP client for Python that simplifies the creation of HTTP requests and retrieves the results as DTO. Here is the package's features:
 
 ✅ Supports GET, POST, PUT, PATCH and DELETE requests
 
 ✅ Sync & Async Client
 
-✅ Optional Caching for GET Requests
+✅ Optional Caching for GET Requests (Support In-Memory, Redis, Django Cache)
 
 ✅ Authentication (Static & Dynamic)
 
@@ -24,129 +24,163 @@ Dequest is a full featured declarative rest client for Python that streamlines t
 ✅ Logging
 
 
-
-
 ## Installation
-Run following command to install **dequest** :
+To install Dequest, simply run:
 
-```bash
+```sh
 pip install dequest
 ```
 
-## Usage
+## Getting Started
 
-Declare a function with `@sync_client` decorator and pass the `dto_class` parameter to map the response to a DTO. You can also pass the `method`, `timeout`, `retries`, `retry_delay`, `auth_token`, `api_key`, `default_headers`, and `enable_cache` parameters.
+## Configuration
+Dequest allows global configuration via `DequestConfig`, the configuration can be set using `.config` method of the `DequestConfig` class:
 
 ```python
-from dequest.clients import sync_client
-from dequest.parameter_types import PathParameter
+from dequest import DequestConfig
 
+DequestConfig.config(
+    cache_provider="redis", # defaults to "in_memory"
+    redis_host="my-redis-server.com",
+    redis_port=6380,
+    redis_db=1,
+    redis_password="securepassword",
+    redis_ssl=True,
+)
+```
+
+### Synchronous API Calls
+Use `@sync_client` to make synchronous HTTP requests without writing boilerplate code:
+
+```python
+from dequest import sync_client, QueryParameter
+from typing import List
+from dataclasses import dataclass
+
+@dataclass
 class UserDto:
+    id: int
     name: str
-    address: AddressDto
-    friends: list[str]
+    city: str
 
-    def __init__(self, name, address, friends):
+    def __init__(self, id, name, city):
+        self.id = id
         self.name = name
-        self.address = address
-        self.friends = friends
+        self.city = city
 
+@sync_client(url="https://jsonplaceholder.typicode.com/users", dto_class=UserDto)
+def get_users(city: QueryParameter[str, "city_name"]) -> List[UserDto]:
+    pass
+
+users = get_users(city="New York")
+print(users)
+```
+
+### Asynchronous API Calls
+Use `@async_client` to make non-blocking HTTP requests:
+
+```python
+from dequest import async_client, HTTPMethod
+
+async def callback_function(response):
+    print(response)
+
+@async_client(url="https://api.example.com/notify", method=HTTPMethod.POST, callback=callback_function)
+def notify():
+    pass
+
+notify()
+```
+
+## Handling Parameters
+### Path Parameters
+Pass values inside the URL using `PathParameter`:
+
+```python
+from dequest import sync_client, PathParameter
 
 @sync_client(url="https://jsonplaceholder.typicode.com/users/{user_id}", dto_class=UserDto)
-def get_user(user_id: PathParameter) -> UserDto:
-    pass
-
-user = get_user(1)
-```
-
-Retrieving a list of users by city name using query parameters, you also can map the parameter name to the API's actuall query parameter name:
-
-```python
-@sync_client(url="https://jsonplaceholder.typicode.com/users", dto_class=UserDto)
-def get_users(city_name:QueryParameter[str, "cityName"]) -> List[UserDto]:
-    pass
-
-users = get_users("Paris")
-```
-The request will be sent to API as `https://jsonplaceholder.typicode.com/users?cityName=Paris`.
-
-### Cache
-
-To enable caching, set the `enable_cache` parameter to `True` in the `sync_client` decorator. You can also pass the `cache_ttl` parameter to set the cache expiration time in seconds, the default value is None which means no expiration. Dequest supports `redis` and `in_memory` cache drivers, wich can be configured in `dequest.config.DequestConfig` which is a static class. The default cache provider is `in_memory`.
-
-```python
-from dequest.clients import sync_client
-from dequest.config import DequestConfig
-
-DequestConfig.cache_driver = "redis"
-
-@sync_client(
-    url="https://jsonplaceholder.typicode.com/users/{user_id}",
-    dto_class=UserDto,
-    enable_cache=True,
-    cache_ttl=300
-)
 def get_user(user_id: PathParameter[int]) -> UserDto:
     pass
 
-user = get_user(1)
+user = get_user(user_id=1)
+print(user)
 ```
 
-### Authentication
-
-To add authentication, pass the `auth_token` parameter to the `sync_client` decorator. You can also pass the `api_key` parameter to add an API key to the request headers.
-
-Static authentication:
+### Query Parameters
+Pass values as URL query parameters using `QueryParameter`:
 
 ```python
-from dequest.clients import sync_client
+from dequest import sync_client, QueryParameter
 
-@sync_client(
-    url="https://jsonplaceholder.typicode.com/users/{user_id}",
-    dto_class=UserDto,
-    auth_token="my_auth_token"
-)
-def get_user(user_id: PathParameter[int]) -> UserDto:
+@sync_client(url="https://api.example.com/search", dto_class=UserDto)
+def search_users(name: QueryParameter[str]):
     pass
 
-user = get_user(1)
+users = search_users(name="Alice")
 ```
 
-Dynamic authentication token generation:
+### JSON Parameters
+For POST requests pass values as JSON payload using `JsonBody`:
 
 ```python
-from dequest.clients import sync_client
+from dequest import sync_client, HTTPMethod, JsonBody
 
-def get_auth_token():
-    return "my_auth_token"
-
-@sync_client(url="https://jsonplaceholder.typicode.com/users/{user_id}", dto_class=UserDto, auth_token=get_auth_token)
-def get_user(user_id: PathParameter[int]):
+@sync_client(url="https://api.example.com/users", method=HTTPMethod.POST, dto_class=UserDto)
+def create_user(name: JsonBody, city: JsonBody) -> UserDto:
     pass
 
-user = get_user(1)
+new_user = create_user(name="Alice", city="Berlin")
 ```
 
-Post Method:
+## Advanced Features
+### Retries
+Automatically retry failed requests:
 
 ```python
-from dequest.clients import sync_client
-
-@sync_client(
-    url="https://example.com/users",
-    dto_class=UserDto,
-    method="POST",
-)
-def create_user(name: JsonBody[str], address: JsonBody[str]) -> UserDto:
+@sync_client(url="https://api.example.com/data", retries=3, retry_delay=2.0)
+def get_data():
     pass
-
-post = create_post("title", "body")
 ```
-The reqest will be equal to:
 
-```bash
-curl -X POST -H "Content-Type: application/json" -d '{"name": "title", "address": "body"}' https://example.com/users
+### Caching
+Enable caching for GET requests:
+
+```python
+@sync_client(url="https://api.example.com/popular-posts", enable_cache=True, cache_ttl=60)
+def get_popular_posts():
+    pass
 ```
+
+### Circuit Breaker
+Prevent excessive calls to failing APIs using a circuit breaker:
+
+```python
+from dequest import sync_client, CircuitBreaker
+
+breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=30)
+
+@sync_client(url="https://api.unstable.com/data", circuit_breaker=breaker)
+def get_unstable_data():
+    pass
+```
+
+### Fallback on Failure
+Define a fallback function for when the circuit breaker is open:
+
+```python
+from dequest import CircuitBreaker
+
+def fallback_response():
+    return {"message": "Service unavailable, returning cached data"}
+
+breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=10, fallback_function=fallback_response)
+
+@sync_client(url="https://api.unstable.com/data", circuit_breaker=breaker)
+def fetch_unstable_data():
+    pass
+```
+
 
 
 ## License

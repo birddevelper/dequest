@@ -25,8 +25,8 @@ class RedisDriver:
         )
         logger.info("Redis client initialized")
 
-    def expire_key(self, key, seconds):
-        return self.client.expire(key, seconds)
+    def delete_key(self, key):
+        return self.client.delete(key)
 
     def set_key(self, key, value, expire=None):
         self.client.set(key, value, ex=expire)

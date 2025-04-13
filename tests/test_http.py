@@ -2,7 +2,7 @@ import httpx
 import pytest
 import respx
 
-from dequest.enums import ConsumerType
+from dequest import ConsumerType
 from dequest.http import async_request
 
 

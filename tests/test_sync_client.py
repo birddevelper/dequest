@@ -5,11 +5,9 @@ import pytest
 import responses
 from responses.matchers import json_params_matcher, urlencoded_params_matcher
 
+from dequest import ConsumerType, FormParameter, JsonBody, PathParameter, sync_client
 from dequest.circuit_breaker import CircuitBreaker, CircuitBreakerState
-from dequest.clients import sync_client
-from dequest.enums import ConsumerType
 from dequest.exceptions import DequestError, InvalidParameterValueError
-from dequest.parameter_types import FormParameter, JsonBody, PathParameter
 
 
 class UserDTO:

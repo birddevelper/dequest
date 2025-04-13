@@ -1,8 +1,8 @@
 import pytest
 import responses
 
+from dequest import ConsumerType
 from dequest.clients._sync import _perform_request
-from dequest.http import ConsumerType
 
 
 @responses.activate

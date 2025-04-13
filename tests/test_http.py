@@ -2,7 +2,8 @@ import httpx
 import pytest
 import respx
 
-from dequest.http import ConsumerType, async_request
+from dequest import ConsumerType
+from dequest.http import async_request
 
 
 @pytest.mark.asyncio

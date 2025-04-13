@@ -1,4 +1,4 @@
-from dequest.config import DequestConfig
+from dequest import DequestConfig
 
 
 def test_get_config():

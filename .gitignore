@@ -1,3 +1,6 @@
 __pycache__/
 .pyc
 .coverage
+*.egg
+*.egg-info/
+dist/

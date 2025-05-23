@@ -23,6 +23,8 @@ T = TypeVar("T")
 logger = get_logger()
 cache = get_cache()
 
+background_tasks: set[asyncio.Task] = set()
+
 
 async def _perform_request(
     url: str,
@@ -74,7 +76,7 @@ async def _perform_request(
     return response_data
 
 
-def async_client(
+def async_client(  # noqa: PLR0915
     url: str,
     dto_class: Optional[type[T]] = None,
     method: str = "GET",
@@ -146,9 +148,11 @@ def async_client(
                         formatted_url,
                     )
                     if circuit_breaker.fallback_function:
-                        asyncio.create_task(  # noqa: RUF006
+                        task = asyncio.create_task(
                             circuit_breaker.fallback_function(*args, **kwargs),
                         )
+                        background_tasks.add(task)
+                        task.add_done_callback(background_tasks.discard)
                         return
 
                     raise CircuitBreakerOpenError(
@@ -180,13 +184,17 @@ def async_client(
                                 else map_xml_to_dto(dto_class, response_data)
                             )
                             if callback:
-                                asyncio.create_task(  # noqa: RUF006
+                                task = asyncio.create_task(
                                     callback(dto_object),
                                 )
+                                background_tasks.add(task)
+                                task.add_done_callback(background_tasks.discard)
                                 return
 
                         if callback and response_data:
-                            asyncio.create_task(callback(response_data))  # noqa: RUF006
+                            task = asyncio.create_task(callback(response_data))
+                            background_tasks.add(task)
+                            task.add_done_callback(background_tasks.discard)
 
                         return
 

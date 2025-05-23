@@ -1,4 +1,8 @@
 # Dequest
+[![PyPI - Version](https://img.shields.io/pypi/v/dequest.svg?style=for-the-badge)](https://pypi.org/project/dequest/)
+![Pre Commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)
+![Code Style - Ruff](https://img.shields.io/badge/code%20style-ruff-30173D.svg?style=for-the-badge)
+
 Dequest is a full featured declarative HTTP client for Python that simplifies the creation of HTTP requests and retrieves the results as DTO. Here is the package's features:
 
 ✅ Supports GET, POST, PUT, PATCH and DELETE requests
@@ -135,10 +139,10 @@ new_user = create_user(name="Alice", city="Berlin")
 
 ## Advanced Features
 ### Retries
-Automatically retry failed requests:
+Automatically retry failed requests on specified exceptions:
 
 ```python
-@sync_client(url="https://api.example.com/data", retries=3, retry_delay=2.0)
+@sync_client(url="https://api.example.com/data", retries=3, retry_on_exceptions=(ConnectionError, HTTPError), retry_delay=2)
 def get_data():
     pass
 ```

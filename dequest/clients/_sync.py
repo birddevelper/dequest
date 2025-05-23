@@ -87,6 +87,7 @@ def sync_client(
     retries: int = 1,
     retry_on_exceptions: Optional[tuple[Exception, ...]] = None,
     retry_delay: float = 2.0,
+    giveup: Optional[Callable[[Exception], bool]] = None,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
     headers: Optional[Union[dict[str, str], Callable[[], dict[str, str]]]] = None,
@@ -107,6 +108,7 @@ def sync_client(
     :param retries: Number of retries on failure.
     :param retry_on_exceptions: Exceptions to retry on.
     :param retry_delay: Delay in seconds between retries.
+    :param giveup: Function to determine if a retry should be given up.
     :param auth_token: Optional Bearer Token (static string or function returning a string).
     :param api_key: Optional API key (static string or function returning a string).
     :param headers: Optional default headers (can be a dict or a function returning a dict).
@@ -178,7 +180,9 @@ def sync_client(
                     )
 
                 except Exception as e:
-                    if retry_on_exceptions and isinstance(e, retry_on_exceptions):
+                    _giveup = giveup(e) if giveup else False
+
+                    if retry_on_exceptions and isinstance(e, retry_on_exceptions) and not _giveup:
                         logger.error("Dequest client error: %s", e)
                         if attempt < retries:
                             logger.info(

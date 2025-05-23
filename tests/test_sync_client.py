@@ -1,4 +1,5 @@
 import datetime
+import http
 import time
 
 import pytest
@@ -121,6 +122,58 @@ def test_sync_client_no_retry():
     @sync_client(
         url="https://api.example.com/users/{user_id}",
         dto_class=UserDTO,
+    )
+    def get_user(user_id: PathParameter[int]):
+        pass
+
+    with pytest.raises(DequestError):
+        get_user(1)
+
+    assert api.call_count == expected_number_of_calls
+
+
+@responses.activate
+def test_sync_client_retry__giveup_not_meet():
+    expected_number_of_calls = 3
+    api = responses.add(
+        responses.GET,
+        "https://api.example.com/users/1",
+        json={"message": "Internal Server Error"},
+        status=500,
+    )
+
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        retries=3,
+        retry_on_exceptions=(HTTPError,),
+        giveup=lambda e: e.response.status_code == http.HTTPStatus.NOT_FOUND,
+    )
+    def get_user(user_id: PathParameter[int]):
+        pass
+
+    with pytest.raises(DequestError):
+        get_user(1)
+
+    assert api.call_count == expected_number_of_calls
+
+
+@responses.activate
+def test_sync_client_retry__giveup_meet():
+    expected_number_of_calls = 1
+    api = responses.add(
+        responses.GET,
+        "https://api.example.com/users/1",
+        json={"message": "Internal Server Error"},
+        status=500,
+    )
+
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        retries=3,
+        retry_on_exceptions=(HTTPError,),
+        giveup=lambda e: e.response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR,
     )
     def get_user(user_id: PathParameter[int]):
         pass

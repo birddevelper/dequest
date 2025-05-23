@@ -7,16 +7,16 @@ from .http import ConsumerType, HttpMethod
 from .parameter_types import FormParameter, JsonBody, PathParameter, QueryParameter
 
 __all__ = [
-    "async_client",
-    "sync_client",
     "CircuitBreaker",
-    "get_cache",
-    "exceptions",
     "ConsumerType",
-    "HttpMethod",
+    "DequestConfig",
     "FormParameter",
+    "HttpMethod",
     "JsonBody",
     "PathParameter",
     "QueryParameter",
-    "DequestConfig",
+    "async_client",
+    "exceptions",
+    "get_cache",
+    "sync_client",
 ]

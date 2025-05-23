@@ -5,14 +5,18 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Optional, TypeVar, Union
 
-from requests.exceptions import RequestException, Timeout
-
 from dequest.cache import get_cache
 from dequest.circuit_breaker import CircuitBreaker
 from dequest.config import DequestConfig
 from dequest.exceptions import CircuitBreakerOpenError, DequestError
 from dequest.http import ConsumerType, sync_request
-from dequest.utils import extract_parameters, generate_cache_key, get_logger, map_json_to_dto, map_xml_to_dto
+from dequest.utils import (
+    extract_parameters,
+    generate_cache_key,
+    get_logger,
+    map_json_to_dto,
+    map_xml_to_dto,
+)
 
 T = TypeVar("T")
 logger = get_logger()
@@ -49,10 +53,23 @@ def _perform_request(
             )
             return json.loads(cached_response) if consume == ConsumerType.JSON else cached_response
 
-    response = sync_request(method, url, headers, json_body, params, data, timeout, consume)
+    response = sync_request(
+        method,
+        url,
+        headers,
+        json_body,
+        params,
+        data,
+        timeout,
+        consume,
+    )
     logger.debug("Response for %s: %s", url, response)
     if enable_cache:
-        cache.set_key(cache_key, json.dumps(response) if consume == ConsumerType.JSON else response, cache_ttl)
+        cache.set_key(
+            cache_key,
+            json.dumps(response) if consume == ConsumerType.JSON else response,
+            cache_ttl,
+        )
         logger.info(
             "Cached response for %s in %s",
             url,
@@ -68,7 +85,9 @@ def sync_client(
     method: str = "GET",
     timeout: int = 30,
     retries: int = 1,
+    retry_on_exceptions: Optional[tuple[Exception, ...]] = None,
     retry_delay: float = 2.0,
+    giveup: Optional[Callable[[Exception], bool]] = None,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
     headers: Optional[Union[dict[str, str], Callable[[], dict[str, str]]]] = None,
@@ -87,7 +106,9 @@ def sync_client(
     :param method: HTTP method (GET, POST, PUT, DELETE).
     :param timeout: Request timeout in seconds.
     :param retries: Number of retries on failure.
+    :param retry_on_exceptions: Exceptions to retry on.
     :param retry_delay: Delay in seconds between retries.
+    :param giveup: Function to determine if a retry should be given up.
     :param auth_token: Optional Bearer Token (static string or function returning a string).
     :param api_key: Optional API key (static string or function returning a string).
     :param headers: Optional default headers (can be a dict or a function returning a dict).
@@ -105,7 +126,11 @@ def sync_client(
             if consume == ConsumerType.TEXT and dto_class:
                 raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
 
-            path_params, query_params, form_params, json_body = extract_parameters(signature, args, kwargs)
+            path_params, query_params, form_params, json_body = extract_parameters(
+                signature,
+                args,
+                kwargs,
+            )
             formatted_url = url.format(**path_params)
 
             request_headers = headers() if callable(headers) else (headers or {})
@@ -123,7 +148,9 @@ def sync_client(
                 if circuit_breaker.fallback_function:
                     return circuit_breaker.fallback_function(*args, **kwargs)
 
-                raise CircuitBreakerOpenError(f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.")
+                raise CircuitBreakerOpenError(
+                    f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.",
+                )
 
             for attempt in range(1, retries + 1):
                 try:
@@ -152,22 +179,31 @@ def sync_client(
                         else map_xml_to_dto(dto_class, response_data)
                     )
 
-                except (RequestException, Timeout) as e:
-                    logger.error("Dequest client error: %s", e)
-                    if attempt < retries:
-                        logger.info(
-                            "Retrying in %s seconds... (Attempt %s/%s)",
-                            retry_delay,
-                            attempt,
-                            retries,
-                        )
-                        time.sleep(retry_delay)
+                except Exception as e:
+                    _giveup = giveup(e) if giveup else False
+
+                    if retry_on_exceptions and isinstance(e, retry_on_exceptions) and not _giveup:
+                        logger.error("Dequest client error: %s", e)
+                        if attempt < retries:
+                            logger.info(
+                                "Retrying in %s seconds... (Attempt %s/%s)",
+                                retry_delay,
+                                attempt,
+                                retries,
+                            )
+                            time.sleep(retry_delay)
+                        else:
+                            # Record single failure when all attempts fail
+                            if circuit_breaker:
+                                circuit_breaker.record_failure()
+                            raise DequestError(
+                                f"Dequest client failed after {retries} attempts: {e!s}",
+                            ) from e
                     else:
-                        # Record single failure when all attempts fail
                         if circuit_breaker:
                             circuit_breaker.record_failure()
                         raise DequestError(
-                            f"Dequest client failed after {retries} attempts: {retries}",
+                            f"Dequest client failed: {e!s}",
                         ) from e
 
             return None

@@ -3,6 +3,7 @@ import time
 
 import pytest
 import responses
+from requests import HTTPError
 from responses.matchers import json_params_matcher, urlencoded_params_matcher
 
 from dequest import ConsumerType, FormParameter, JsonBody, PathParameter, sync_client
@@ -65,7 +66,11 @@ def test_sync_client_with_headers():
         status=200,
     )
 
-    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, headers={"X-Test-Header": "test"})
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        headers={"X-Test-Header": "test"},
+    )
     def get_user(user_id: PathParameter[int]):
         pass
 
@@ -88,7 +93,35 @@ def test_sync_client_retry():
         status=500,
     )
 
-    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, retries=3)
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        retries=3,
+        retry_on_exceptions=(HTTPError,),
+    )
+    def get_user(user_id: PathParameter[int]):
+        pass
+
+    with pytest.raises(DequestError):
+        get_user(1)
+
+    assert api.call_count == expected_number_of_calls
+
+
+@responses.activate
+def test_sync_client_no_retry():
+    expected_number_of_calls = 1
+    api = responses.add(
+        responses.GET,
+        "https://api.example.com/users/1",
+        json={"message": "Internal Server Error"},
+        status=500,
+    )
+
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+    )
     def get_user(user_id: PathParameter[int]):
         pass
 
@@ -114,7 +147,11 @@ def test_sync_client_with_cache():
         status=200,
     )
 
-    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, enable_cache=True)
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        enable_cache=True,
+    )
     def get_user(user_id: PathParameter[int]):
         pass
 
@@ -123,7 +160,7 @@ def test_sync_client_with_cache():
 
         assert user.name == data["name"]
         assert user.grade == data["grade"]
-        assert user.city == data["city"]  # Perform type conversion if base_type is provided (and not Any)
+        assert user.city == data["city"]
 
         assert user.birthday == datetime.date.fromisoformat(data["birthday"])
 
@@ -248,7 +285,12 @@ def test_sync_client_post_method_with_json_payload():
     )
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
-    def save_user(name: JsonBody, grade: JsonBody, city_name: JsonBody["city"], birthday: JsonBody):  # noqa: F821
+    def save_user(
+        name: JsonBody,
+        grade: JsonBody,
+        city_name: JsonBody["city"],  # noqa: F821
+        birthday: JsonBody,
+    ):
         pass
 
     save_user(name="Alice", grade=14, city_name="New York", birthday="2000-01-01")
@@ -280,6 +322,7 @@ def test_sync_client_circute_breaker(client_calls, cb_is_open):
         url="https://api.example.com/users/{user_id}",
         dto_class=UserDTO,
         retries=client_retries,
+        retry_on_exceptions=(HTTPError,),
         circuit_breaker=circut_breaker,
     )
     def get_user(user_id: PathParameter[int]):
@@ -306,7 +349,10 @@ def test_sync_client_circute_breaker__recovery():
     circut_breaker.state = CircuitBreakerState.OPEN
     circut_breaker.last_failure_time = time.time()
 
-    @sync_client(url="https://api.example.com/users/{user_id}", circuit_breaker=circut_breaker)
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        circuit_breaker=circut_breaker,
+    )
     def get_user(user_id: PathParameter[int]):
         pass
 
@@ -322,7 +368,11 @@ def test_sync_client_circute_breaker__fallback():
     def fallback_response(user_id):
         return {"message": "Service temporarily unavailable, please try later."}
 
-    circut_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, fallback_function=fallback_response)
+    circut_breaker = CircuitBreaker(
+        failure_threshold=3,
+        recovery_timeout=30,
+        fallback_function=fallback_response,
+    )
     expected_number_of_calls = 0
     api = responses.add(
         responses.GET,
@@ -333,7 +383,10 @@ def test_sync_client_circute_breaker__fallback():
     circut_breaker.state = CircuitBreakerState.OPEN
     circut_breaker.last_failure_time = time.time()
 
-    @sync_client(url="https://api.example.com/users/{user_id}", circuit_breaker=circut_breaker)
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        circuit_breaker=circut_breaker,
+    )
     def get_user(user_id: PathParameter[int]):
         pass
 
@@ -355,7 +408,11 @@ def test_sync_client_xml_response():
         status=200,
     )
 
-    @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO, consume=ConsumerType.XML)
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        consume=ConsumerType.XML,
+    )
     def get_user(user_id: PathParameter[int]):
         pass
 

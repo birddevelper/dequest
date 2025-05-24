@@ -1,4 +1,8 @@
-from dequest.utils import map_json_to_dto
+from collections.abc import Iterator
+
+import pytest
+
+from dequest.utils import get_next_delay, map_json_to_dto
 
 
 class AddressDTO:
@@ -68,3 +72,34 @@ def test_mapping_partial_dto_attributes_in_constructor():
     assert order.count == data["count"]
     assert order.fee == data["fee"]
     assert order.total_price == data["count"] * data["fee"]
+
+
+def delay_gen() -> Iterator[float]:
+    yield 1.5
+    yield 2.5
+
+
+def test_get_next_delay_with_float():
+    expected_delay = 2.0
+
+    assert get_next_delay(expected_delay) == expected_delay
+
+
+def test_get_next_delay_with_generator():
+    expected_first_delay = 1.5
+    expected_second_delay = 2.5
+    gen = delay_gen()
+
+    assert get_next_delay(gen) == expected_first_delay
+    assert get_next_delay(gen) == expected_second_delay
+
+
+def test_get_next_delay_with_none():
+    assert get_next_delay(None) is None
+
+
+def test_get_next_delay_generator_exhausted():
+    gen = iter([])
+
+    with pytest.raises(StopIteration):
+        get_next_delay(gen)

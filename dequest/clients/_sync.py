@@ -14,6 +14,7 @@ from dequest.utils import (
     extract_parameters,
     generate_cache_key,
     get_logger,
+    get_next_delay,
     map_json_to_dto,
     map_xml_to_dto,
 )
@@ -84,9 +85,9 @@ def sync_client(
     dto_class: Optional[type[T]] = None,
     method: str = "GET",
     timeout: int = 30,
-    retries: int = 1,
+    retries: int = 0,
     retry_on_exceptions: Optional[tuple[Exception, ...]] = None,
-    retry_delay: float = 2.0,
+    retry_delay: Union[float, Callable[[], any]] = 2.0,
     giveup: Optional[Callable[[Exception], bool]] = None,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
@@ -136,6 +137,7 @@ def sync_client(
             request_headers = headers() if callable(headers) else (headers or {})
             token_value = auth_token() if callable(auth_token) else auth_token
             api_key_value = api_key() if callable(api_key) else api_key
+            _retry_delay = retry_delay() if callable(retry_delay) else retry_delay
 
             if token_value:
                 request_headers["Authorization"] = f"Bearer {token_value}"
@@ -152,7 +154,7 @@ def sync_client(
                     f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.",
                 )
 
-            for attempt in range(1, retries + 1):
+            for attempt in range(1, retries + 2):
                 try:
                     response_data = _perform_request(
                         formatted_url,
@@ -184,14 +186,16 @@ def sync_client(
 
                     if retry_on_exceptions and isinstance(e, retry_on_exceptions) and not _giveup:
                         logger.error("Dequest client error: %s", e)
-                        if attempt < retries:
+
+                        if attempt < retries + 1:
+                            delay = get_next_delay(_retry_delay)
                             logger.info(
                                 "Retrying in %s seconds... (Attempt %s/%s)",
-                                retry_delay,
+                                delay,
                                 attempt,
                                 retries,
                             )
-                            time.sleep(retry_delay)
+                            time.sleep(delay)
                         else:
                             # Record single failure when all attempts fail
                             if circuit_breaker:

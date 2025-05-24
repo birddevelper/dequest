@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import hashlib
 import inspect
 import json
@@ -10,7 +11,12 @@ from xml.etree.ElementTree import Element
 from defusedxml import ElementTree
 
 from dequest.exceptions import InvalidParameterValueError
-from dequest.parameter_types import FormParameter, JsonBody, PathParameter, QueryParameter
+from dequest.parameter_types import (
+    FormParameter,
+    JsonBody,
+    PathParameter,
+    QueryParameter,
+)
 
 T = TypeVar("T")  # Generic Type for DTO
 
@@ -109,7 +115,10 @@ def _parse_element(dto_class: type[T], element: Element) -> T:
                 field_annotation = get_type_hints(dto_class)[key]
 
                 # Check if the field is a nested DTO
-                if isinstance(field_annotation, type) and hasattr(field_annotation, "__annotations__"):
+                if isinstance(field_annotation, type) and hasattr(
+                    field_annotation,
+                    "__annotations__",
+                ):
                     mapped_data[key] = _parse_element(field_annotation, child)
                 else:
                     mapped_data[key] = child.text
@@ -167,3 +176,10 @@ def extract_parameters(signature: inspect.Signature, args: tuple, kwargs: dict):
             json_body[param_key] = param_value
 
     return path_params, query_params, form_params, json_body
+
+
+def get_next_delay(retry_delay: Optional[float | collections.abc.Iterator]) -> float:
+    delay_iterator = retry_delay if isinstance(retry_delay, collections.abc.Iterator) else None
+    if delay_iterator:
+        return next(delay_iterator)
+    return retry_delay

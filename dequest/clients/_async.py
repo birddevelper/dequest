@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from functools import wraps
 from typing import Optional, TypeVar, Union
 
@@ -84,7 +84,7 @@ def async_client(  # noqa: PLR0915
     timeout: int = 30,
     retries: int = 0,
     retry_on_exceptions: Optional[tuple[Exception, ...]] = None,
-    retry_delay: float = 2.0,
+    retry_delay: Union[float, Callable[[], Iterator]] = 2.0,
     giveup: Optional[Callable[[Exception], bool]] = None,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
@@ -105,7 +105,7 @@ def async_client(  # noqa: PLR0915
     :param timeout: Request timeout in seconds.
     :param retries: Number of retries on failure.
     :param retry_on_exceptions: Exceptions to retry on.
-    :param retry_delay: Delay in seconds between retries.
+    :param retry_delay: Delay in seconds between retries. Can be a static value or a function returning iterator.
     :param giveup: Function to determine if the retry should be given up.
     :param auth_token: Optional Bearer Token (static string or function returning a string).
     :param api_key: Optional API key (static string or function returning a string).

@@ -110,11 +110,44 @@ def test_sync_client_retry():
 
 
 @responses.activate
-def test_sync_client_retry__dynamic_dalay():
+def test_sync_client_retry__generator():
     def delay_gen():
         yield 1
         yield 2
         yield 3
+
+    expected_number_of_calls = 4
+    expected_total_delay = 6  # 1 + 2 + 3 seconds
+    api = responses.add(
+        responses.GET,
+        "https://api.example.com/users/1",
+        json={"message": "Internal Server Error"},
+        status=500,
+    )
+
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        retries=3,
+        retry_delay=delay_gen,
+        retry_on_exceptions=(HTTPError,),
+    )
+    def get_user(user_id: PathParameter[int]):
+        pass
+
+    start_time = time.time()
+    with pytest.raises(DequestError):
+        get_user(1)
+    elapsed_time = time.time() - start_time
+
+    assert elapsed_time >= expected_total_delay
+    assert api.call_count == expected_number_of_calls
+
+
+@responses.activate
+def test_sync_client_retry__iterator():
+    def delay_gen():
+        return iter([1, 2, 3])
 
     expected_number_of_calls = 4
     expected_total_delay = 6  # 1 + 2 + 3 seconds

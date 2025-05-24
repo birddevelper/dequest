@@ -1,7 +1,7 @@
 import inspect
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from functools import wraps
 from typing import Optional, TypeVar, Union
 
@@ -87,7 +87,7 @@ def sync_client(
     timeout: int = 30,
     retries: int = 0,
     retry_on_exceptions: Optional[tuple[Exception, ...]] = None,
-    retry_delay: Union[float, Callable[[], any]] = 2.0,
+    retry_delay: Union[float, Callable[[], Iterator]] = 2.0,
     giveup: Optional[Callable[[Exception], bool]] = None,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
@@ -108,7 +108,7 @@ def sync_client(
     :param timeout: Request timeout in seconds.
     :param retries: Number of retries on failure.
     :param retry_on_exceptions: Exceptions to retry on.
-    :param retry_delay: Delay in seconds between retries.
+    :param retry_delay: Delay in seconds between retries. Can be a static value or a function returning iterator.
     :param giveup: Function to determine if a retry should be given up.
     :param auth_token: Optional Bearer Token (static string or function returning a string).
     :param api_key: Optional API key (static string or function returning a string).

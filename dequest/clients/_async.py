@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from functools import wraps
 from typing import Optional, TypeVar, Union
 
@@ -15,6 +15,7 @@ from dequest.utils import (
     extract_parameters,
     generate_cache_key,
     get_logger,
+    get_next_delay,
     map_json_to_dto,
     map_xml_to_dto,
 )
@@ -79,11 +80,12 @@ async def _perform_request(
 def async_client(  # noqa: PLR0915
     url: str,
     dto_class: Optional[type[T]] = None,
+    source_field: Optional[str] = None,
     method: str = "GET",
     timeout: int = 30,
-    retries: int = 1,
+    retries: int = 0,
     retry_on_exceptions: Optional[tuple[Exception, ...]] = None,
-    retry_delay: float = 2.0,
+    retry_delay: Union[float, Callable[[], Iterator]] = 2.0,
     giveup: Optional[Callable[[Exception], bool]] = None,
     auth_token: Optional[Union[str, Callable[[], str]]] = None,
     api_key: Optional[Union[str, Callable[[], str]]] = None,
@@ -100,11 +102,12 @@ def async_client(  # noqa: PLR0915
 
     :param url: URL template with placeholders for path parameters.
     :param dto_class: The DTO class to map the response data.
+    :param source_field: Source field to use for mapping response data. Leave None to map whole response.
     :param method: HTTP method (GET, POST, PUT, DELETE).
     :param timeout: Request timeout in seconds.
     :param retries: Number of retries on failure.
     :param retry_on_exceptions: Exceptions to retry on.
-    :param retry_delay: Delay in seconds between retries.
+    :param retry_delay: Delay in seconds between retries. Can be a static value or a function returning iterator.
     :param giveup: Function to determine if the retry should be given up.
     :param auth_token: Optional Bearer Token (static string or function returning a string).
     :param api_key: Optional API key (static string or function returning a string).
@@ -120,7 +123,7 @@ def async_client(  # noqa: PLR0915
         signature = inspect.signature(func)
 
         @wraps(func)
-        def wrapper(*args, **kwargs) -> None:
+        def wrapper(*args, **kwargs) -> None:  # noqa: PLR0915
             """
             Executes the decorated function asynchronously inside an event loop.
             The user does NOT need to `await` the function.
@@ -137,6 +140,7 @@ def async_client(  # noqa: PLR0915
             request_headers = headers() if callable(headers) else (headers or {})
             token_value = auth_token() if callable(auth_token) else auth_token
             api_key_value = api_key() if callable(api_key) else api_key
+            _retry_delay = retry_delay() if callable(retry_delay) else retry_delay
 
             if token_value:
                 request_headers["Authorization"] = f"Bearer {token_value}"
@@ -161,7 +165,7 @@ def async_client(  # noqa: PLR0915
                         f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.",
                     )
 
-                for attempt in range(1, retries + 1):
+                for attempt in range(1, retries + 2):  # 1st call + retries
                     try:
                         response_data = await _perform_request(
                             formatted_url,
@@ -181,9 +185,13 @@ def async_client(  # noqa: PLR0915
 
                         if dto_class:
                             dto_object = (
-                                map_json_to_dto(dto_class, response_data)
+                                map_json_to_dto(dto_class, response_data, source_field)
                                 if consume == ConsumerType.JSON
-                                else map_xml_to_dto(dto_class, response_data)
+                                else map_xml_to_dto(
+                                    dto_class,
+                                    response_data,
+                                    source_field,
+                                )
                             )
                             if callback:
                                 task = asyncio.create_task(
@@ -204,14 +212,15 @@ def async_client(  # noqa: PLR0915
                         _giveup = giveup(e) if giveup else False
                         if retry_on_exceptions and isinstance(e, retry_on_exceptions) and not _giveup:
                             logger.error("Dequest client error: %s", e)
-                            if attempt < retries:
+                            if attempt < retries + 1:
+                                delay = get_next_delay(_retry_delay)
                                 logger.info(
                                     "Retrying in %s seconds... (Attempt %s/%s)",
-                                    retry_delay,
+                                    delay,
                                     attempt,
                                     retries,
                                 )
-                                asyncio.sleep(retry_delay)
+                                await asyncio.sleep(delay)
                             else:
                                 # Record single failure when all attempts fail
                                 if circuit_breaker:

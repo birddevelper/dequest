@@ -1,4 +1,8 @@
-from dequest.utils import map_json_to_dto
+from collections.abc import Iterator
+
+import pytest
+
+from dequest.utils import get_next_delay, map_json_to_dto
 
 
 class AddressDTO:
@@ -59,6 +63,38 @@ def test_mapping_non_nested_dto():
     assert address.city == data["city"]
 
 
+def test_mapping_with_source_field():
+    data = {
+        "address": {"street": "123 Main St", "city": "Hometown"},
+        "name": "John",
+        "friends": ["Alice", "Bob"],
+    }
+
+    address = map_json_to_dto(AddressDTO, data, "address")
+
+    assert address.street == data["address"]["street"]
+    assert address.city == data["address"]["city"]
+
+
+def test_mapping_with_list_source_field():
+    expected_addresses_count = 2
+    data = {
+        "addresses": [
+            {"street": "123 Main St", "city": "Hometown"},
+            {"street": "456 Elm St", "city": "OtherTown"},
+        ],
+        "name": "John",
+        "friends": ["Alice", "Bob"],
+    }
+
+    address = map_json_to_dto(AddressDTO, data, "addresses")
+
+    assert isinstance(address, list)
+    assert len(address) == expected_addresses_count
+    assert address[0].street == data["addresses"][0]["street"]
+    assert address[0].city == data["addresses"][0]["city"]
+
+
 def test_mapping_partial_dto_attributes_in_constructor():
     data = {"name": "PopCorn", "count": 2, "fee": 10.0}
 
@@ -68,3 +104,34 @@ def test_mapping_partial_dto_attributes_in_constructor():
     assert order.count == data["count"]
     assert order.fee == data["fee"]
     assert order.total_price == data["count"] * data["fee"]
+
+
+def delay_gen() -> Iterator[float]:
+    yield 1.5
+    yield 2.5
+
+
+def test_get_next_delay_with_float():
+    expected_delay = 2.0
+
+    assert get_next_delay(expected_delay) == expected_delay
+
+
+def test_get_next_delay_with_generator():
+    expected_first_delay = 1.5
+    expected_second_delay = 2.5
+    gen = delay_gen()
+
+    assert get_next_delay(gen) == expected_first_delay
+    assert get_next_delay(gen) == expected_second_delay
+
+
+def test_get_next_delay_with_none():
+    assert get_next_delay(None) is None
+
+
+def test_get_next_delay_generator_exhausted():
+    gen = iter([])
+
+    with pytest.raises(StopIteration):
+        get_next_delay(gen)

@@ -83,6 +83,7 @@ def _perform_request(
 def sync_client(
     url: str,
     dto_class: Optional[type[T]] = None,
+    source_field: Optional[str] = None,
     method: str = "GET",
     timeout: int = 30,
     retries: int = 0,
@@ -104,6 +105,7 @@ def sync_client(
 
     :param url: URL template with placeholders for path parameters.
     :param dto_class: DTO class to map response data.
+    :param source_field: Source field to use for mapping response data. Leave None to map whole response.
     :param method: HTTP method (GET, POST, PUT, DELETE).
     :param timeout: Request timeout in seconds.
     :param retries: Number of retries on failure.
@@ -176,7 +178,7 @@ def sync_client(
                         return response_data
 
                     return (
-                        map_json_to_dto(dto_class, response_data)
+                        map_json_to_dto(dto_class, response_data, source_field)
                         if consume == ConsumerType.JSON
                         else map_xml_to_dto(dto_class, response_data)
                     )

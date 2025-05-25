@@ -51,11 +51,17 @@ def generate_cache_key(url: str, params: Optional[dict[str, Any]]) -> str:
     return hashlib.md5(cache_string.encode()).hexdigest()
 
 
-def map_json_to_dto(dto_class: type[T], data: dict[str, Any]) -> T:
+def map_json_to_dto(
+    dto_class: type[T],
+    data: dict[str, Any],
+    source_field: str | None = None,
+) -> T:
+    source_data = data[source_field] if source_field else data
+
     return (
-        [_map_json_to_dto(dto_class, item) for item in data]
-        if isinstance(data, list)
-        else _map_json_to_dto(dto_class, data)
+        [_map_json_to_dto(dto_class, item) for item in source_data]
+        if isinstance(source_data, list)
+        else _map_json_to_dto(dto_class, source_data)
     )
 
 
@@ -91,14 +97,24 @@ def get_logger() -> logging.Logger:
     return logger
 
 
-def map_xml_to_dto(dto_class: type[T], xml_data: str) -> T | list[T]:
+def map_xml_to_dto(
+    dto_class: type[T],
+    xml_data: str,
+    source_field: str | None = None,
+) -> T | list[T]:
     root = ElementTree.fromstring(xml_data)
 
-    # If multiple elements exist, return a list
-    if len(root) > 1 and all(child.tag == root[0].tag for child in root):
-        return [_parse_element(dto_class, child) for child in root]
+    # If source_field is provided, use the child element as the root
+    source_root = root.find(source_field) if source_field else root
 
-    return _parse_element(dto_class, root)
+    if source_field and source_root is None:
+        raise ValueError(f"Source field '{source_field}' not found in the XML element.")
+
+    # If multiple elements exist, return a list
+    if len(source_root) > 1 and all(child.tag == source_root[0].tag for child in source_root):
+        return [_parse_element(dto_class, child) for child in source_root]
+
+    return _parse_element(dto_class, source_root)
 
 
 def _parse_element(dto_class: type[T], element: Element) -> T:

@@ -41,6 +41,33 @@ def test_mapping_children():
     assert dto.age == expected_age
 
 
+def test_mapping_children_with_source_field():
+    xml_data = "<Position><Person><name>John</name><age>30</age></Person><Salary>1000</Salary></Position>"
+    expected_age = 30
+
+    dto = map_xml_to_dto(SimpleDTO, xml_data, "Person")
+
+    assert dto.name == "John"
+    assert dto.age == expected_age
+
+
+def test_mapping_children_with_list_source_field():
+    expected_number_of_records = 2
+    xml_data = (
+        "<Position><Persons><Person><name>John</name><age>30</age></Person>"
+        "<Person><name>Alex</name><age>30</age></Person></Persons>"
+        "<Salary>1000</Salary></Position>"
+    )
+    expected_age = 30
+
+    dto = map_xml_to_dto(SimpleDTO, xml_data, "Persons")
+
+    assert isinstance(dto, list)
+    assert len(dto) == expected_number_of_records
+    assert dto[0].name == "John"
+    assert dto[0].age == expected_age
+
+
 def test_nested_dto_children():
     xml_data = "<Book><title>Python Guide</title><details><name>Alice</name><age>25</age></details></Book>"
     expected_age = 25

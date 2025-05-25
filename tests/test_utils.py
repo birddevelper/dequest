@@ -63,6 +63,38 @@ def test_mapping_non_nested_dto():
     assert address.city == data["city"]
 
 
+def test_mapping_with_source_field():
+    data = {
+        "address": {"street": "123 Main St", "city": "Hometown"},
+        "name": "John",
+        "friends": ["Alice", "Bob"],
+    }
+
+    address = map_json_to_dto(AddressDTO, data, "address")
+
+    assert address.street == data["address"]["street"]
+    assert address.city == data["address"]["city"]
+
+
+def test_mapping_with_list_source_field():
+    expected_addresses_count = 2
+    data = {
+        "addresses": [
+            {"street": "123 Main St", "city": "Hometown"},
+            {"street": "456 Elm St", "city": "OtherTown"},
+        ],
+        "name": "John",
+        "friends": ["Alice", "Bob"],
+    }
+
+    address = map_json_to_dto(AddressDTO, data, "addresses")
+
+    assert isinstance(address, list)
+    assert len(address) == expected_addresses_count
+    assert address[0].street == data["addresses"][0]["street"]
+    assert address[0].city == data["addresses"][0]["city"]
+
+
 def test_mapping_partial_dto_attributes_in_constructor():
     data = {"name": "PopCorn", "count": 2, "fee": 10.0}
 

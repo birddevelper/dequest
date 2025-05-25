@@ -53,6 +53,40 @@ def test_sync_client():
 
 
 @responses.activate
+def test_sync_client_with_source_field():
+    data = {
+        "position": "Developer",
+        "user": {
+            "name": "Alice",
+            "grade": 14,
+            "city": "New York",
+            "birthday": "2000-01-01",
+        },
+    }
+    responses.add(
+        responses.GET,
+        "https://api.example.com/users/1",
+        json=data,
+        status=200,
+    )
+
+    @sync_client(
+        url="https://api.example.com/users/{user_id}",
+        dto_class=UserDTO,
+        source_field="user",
+    )
+    def get_user(user_id: PathParameter[int]):
+        pass
+
+    user = get_user(1)
+
+    assert user.name == data["user"]["name"]
+    assert user.grade == data["user"]["grade"]
+    assert user.city == data["user"]["city"]
+    assert user.birthday == datetime.date.fromisoformat(data["user"]["birthday"])
+
+
+@responses.activate
 def test_sync_client_with_headers():
     data = {
         "name": "Alice",

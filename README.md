@@ -17,7 +17,7 @@ Dequest is a full featured declarative HTTP client for Python that simplifies th
 
 ✅ Support query parameters, JSON body and Form-data
 
-✅ Implements Retry & Timeout Handling
+✅ Retry and Backoff
 
 ✅ Allows Custom Headers per Request (Static & Dynamic)
 

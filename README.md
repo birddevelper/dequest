@@ -27,6 +27,9 @@ Dequest is a full featured declarative HTTP client for Python that simplifies th
 
 ✅ Logging
 
+## Documentation
+
+For comprehensive details on Dequest, please refer to the full documentation available at [Read the Docs](https://dequest-documentation.readthedocs.io/en/latest/).
 
 ## Installation
 To install Dequest, simply run:

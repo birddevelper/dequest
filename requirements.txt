@@ -1,5 +1,5 @@
 responses==0.25.7
-requests==2.32.3
+requests==2.32.4
 redis==6.1.0
 pytest==8.4.0
 httpx==0.28.1

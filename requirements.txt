@@ -1,6 +1,6 @@
 responses==0.25.7
 requests==2.32.4
-redis==6.1.0
+redis==6.2.0
 pytest==8.4.0
 httpx==0.28.1
 pytest-asyncio==1.0.0

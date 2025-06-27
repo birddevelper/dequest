@@ -70,10 +70,6 @@ class UserDto:
     name: str
     city: str
 
-    def __init__(self, id, name, city):
-        self.id = id
-        self.name = name
-        self.city = city
 
 @sync_client(url="https://jsonplaceholder.typicode.com/users", dto_class=UserDto)
 def get_users(city: QueryParameter[str, "city_name"]) -> List[UserDto]:

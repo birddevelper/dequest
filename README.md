@@ -5,13 +5,48 @@
 
 Dequest is a full featured declarative HTTP client for Python that simplifies the creation of HTTP requests and retrieves the results as DTO. Here is the package's features:
 
+## Why dequest?
+
+* **Fast to code:**
+  Develop API-integrated features **2–3× faster** with zero boilerplate—just decorate and go.
+
+* **No boilerplate:**
+  Say goodbye to manual `requests`, `asyncio`, retries, and JSON parsing. One function = one clean API call.
+
+* **Safe and typed:**
+  Supports Pydantic-style DTOs, typed parameters, and response mapping—minimizing runtime surprises.
+
+* **Resilient by default:**
+  Built-in support for **retries**, **caching**, and **circuit breakers**. Your APIs won’t bring your app down.
+
+* **Declarative and elegant:**
+  Define path, query, form, and body parameters cleanly with `PathParameter`, `QueryParameter`, `JsonBody`, etc.
+
+* **Smart caching:**
+  Add in-memory or Redis-based caching with a single flag.
+
+* **Async without async:**
+  Use `@async_client` and fire off non-blocking API calls without dealing with asyncio yourself.
+
+* **Built-in callbacks & fallbacks:**
+  Handle async responses or fallback gracefully when APIs are flaky, dequest makes it smooth.
+
+* **Framework-agnostic:**
+  Works in **any Python project**, from CLI apps to FastAPI, Flask, Django, and beyond.
+
+
+## Documentation
+
+For comprehensive details on Dequest, please refer to the full documentation available at [Read the Docs](https://dequest-documentation.readthedocs.io/en/latest/).
+
+## Key Features
 ✅ Supports GET, POST, PUT, PATCH and DELETE requests
 
 ✅ Sync & Async Client
 
 ✅ Optional Caching for GET Requests (Support In-Memory, Redis, Django Cache)
 
-✅ Authentication (Static & Dynamic)
+✅ Support authentication (Static & Dynamic)
 
 ✅ Maps API Json/XML response to DTO object and list (Supports unlimited nested DTOs)
 
@@ -26,10 +61,6 @@ Dequest is a full featured declarative HTTP client for Python that simplifies th
 ✅ API parameter mapping and type checking
 
 ✅ Logging
-
-## Documentation
-
-For comprehensive details on Dequest, please refer to the full documentation available at [Read the Docs](https://dequest-documentation.readthedocs.io/en/latest/).
 
 ## Installation
 To install Dequest, simply run:

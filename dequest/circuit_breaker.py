@@ -1,7 +1,7 @@
 import time
 from collections.abc import Callable
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from dequest.utils import get_logger
 
@@ -19,7 +19,7 @@ class CircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: int = 30,
-        fallback_function: Optional[Callable[[], Any]] = None,
+        fallback_function: Callable[[], Any] | None = None,
     ):
         """
         :param failure_threshold: Number of consecutive failures before switching to OPEN state

@@ -5,7 +5,7 @@ import inspect
 import json
 import logging
 import threading
-from typing import Any, Optional, TypeVar, get_origin, get_type_hints
+from typing import Any, TypeVar, get_origin, get_type_hints
 from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree
@@ -24,7 +24,7 @@ T = TypeVar("T")  # Generic Type for DTO
 class AsyncLoopManager:
     """Ensures a single background event loop runs in a dedicated thread."""
 
-    _background_loop: Optional[asyncio.AbstractEventLoop] = None
+    _background_loop: asyncio.AbstractEventLoop | None = None
     _lock = threading.Lock()
 
     @classmethod
@@ -44,7 +44,7 @@ class AsyncLoopManager:
                 return cls._background_loop
 
 
-def generate_cache_key(url: str, params: Optional[dict[str, Any]]) -> str:
+def generate_cache_key(url: str, params: dict[str, Any] | None) -> str:
     """Generates a unique cache key using URL and query parameters."""
     cache_data = {"url": url, "params": params}
     cache_string = json.dumps(cache_data, sort_keys=True)
@@ -194,7 +194,7 @@ def extract_parameters(signature: inspect.Signature, args: tuple, kwargs: dict):
     return path_params, query_params, form_params, json_body
 
 
-def get_next_delay(retry_delay: Optional[float | collections.abc.Iterator]) -> float:
+def get_next_delay(retry_delay: float | collections.abc.Iterator | None) -> float:
     delay_iterator = retry_delay if isinstance(retry_delay, collections.abc.Iterator) else None
     if delay_iterator:
         return next(delay_iterator)

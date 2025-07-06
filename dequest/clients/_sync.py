@@ -3,7 +3,7 @@ import json
 import time
 from collections.abc import Callable, Iterator
 from functools import wraps
-from typing import Optional, TypeVar, Union
+from typing import TypeVar, Union
 
 from dequest.cache import get_cache
 from dequest.circuit_breaker import CircuitBreaker
@@ -27,13 +27,13 @@ cache = get_cache()
 def _perform_request(
     url: str,
     method: str,
-    headers: Optional[dict],
-    json_body: Optional[dict],
-    params: Optional[dict],
-    data: Optional[dict],
+    headers: dict | None,
+    json_body: dict | None,
+    params: dict | None,
+    data: dict | None,
     timeout: int,
     enable_cache: bool,
-    cache_ttl: Optional[int],
+    cache_ttl: int | None,
     consume: ConsumerType,
 ) -> dict:
     method = method.upper()
@@ -82,20 +82,20 @@ def _perform_request(
 
 def sync_client(
     url: str,
-    dto_class: Optional[type[T]] = None,
-    source_field: Optional[str] = None,
+    dto_class: type[T] | None = None,
+    source_field: str | None = None,
     method: str = "GET",
     timeout: int = 30,
     retries: int = 0,
-    retry_on_exceptions: Optional[tuple[Exception, ...]] = None,
+    retry_on_exceptions: tuple[Exception, ...] | None = None,
     retry_delay: Union[float, Callable[[], Iterator]] = 2.0,
-    giveup: Optional[Callable[[Exception], bool]] = None,
-    auth_token: Optional[Union[str, Callable[[], str]]] = None,
-    api_key: Optional[Union[str, Callable[[], str]]] = None,
-    headers: Optional[Union[dict[str, str], Callable[[], dict[str, str]]]] = None,
+    giveup: Callable[[Exception], bool] | None = None,
+    auth_token: Union[str, Callable[[], str]] | None = None,
+    api_key: Union[str, Callable[[], str]] | None = None,
+    headers: Union[dict[str, str], Callable[[], dict[str, str]]] | None = None,
     enable_cache: bool = False,
-    cache_ttl: Optional[int] = None,
-    circuit_breaker: Optional[CircuitBreaker] = None,
+    cache_ttl: int | None = None,
+    circuit_breaker: CircuitBreaker | None = None,
     consume: ConsumerType = ConsumerType.JSON,
 ):
     """
@@ -125,7 +125,7 @@ def sync_client(
         signature = inspect.signature(func)
 
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Optional[T]:
+        def wrapper(*args, **kwargs) -> T | None:
             if consume == ConsumerType.TEXT and dto_class:
                 raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
 

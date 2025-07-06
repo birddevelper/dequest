@@ -5,7 +5,7 @@ logger = get_logger()
 
 class DjangoCacheDriver:
     def __init__(self):
-        from django.core.cache import cache
+        from django.core.cache import cache  # noqa: PLC0415
 
         self.cache = cache
         logger.info("Django cache initialized")

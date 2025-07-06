@@ -1,22 +1,22 @@
-from typing import Any, Generic, Optional, Protocol, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
 class ParameterParser(Protocol):
     @staticmethod
-    def parse(params: Any) -> tuple[Optional[type], Optional[str]]: ...
+    def parse(params: Any) -> tuple[type | None, str | None]: ...
 
 
 class DictParser:
     @staticmethod
-    def parse(params: dict) -> tuple[Optional[type], Optional[str]]:
+    def parse(params: dict) -> tuple[type | None, str | None]:
         return params.get("base_type"), params.get("alias")
 
 
 class TupleParser:
     @staticmethod
-    def parse(params: tuple) -> tuple[Optional[type], Optional[str]]:
+    def parse(params: tuple) -> tuple[type | None, str | None]:
         length = len(params)
         if length == 1:
             return (None, params[0]) if isinstance(params[0], str) else (params[0], None)
@@ -27,7 +27,7 @@ class TupleParser:
 
 class DefaultParser:
     @staticmethod
-    def parse(params: Any) -> tuple[Optional[type], Optional[str]]:
+    def parse(params: Any) -> tuple[type | None, str | None]:
         return (None, params) if isinstance(params, str) else (params, None)
 
 

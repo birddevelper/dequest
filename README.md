@@ -35,10 +35,6 @@ Dequest is a full featured declarative HTTP client for Python that simplifies th
   Works in **any Python project**, from CLI apps to FastAPI, Flask, Django, and beyond.
 
 
-## Documentation
-
-For comprehensive details on Dequest, please refer to the full documentation available at [Read the Docs](https://dequest-documentation.readthedocs.io/en/latest/).
-
 ## Key Features
 ✅ Supports GET, POST, PUT, PATCH and DELETE requests
 
@@ -216,6 +212,9 @@ def fetch_unstable_data():
 ```
 
 
+## Documentation
+
+For comprehensive details on Dequest, please refer to the full documentation available at [Read the Docs](https://dequest-documentation.readthedocs.io/en/latest/).
 
 ## License
 

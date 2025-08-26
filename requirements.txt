@@ -1,4 +1,4 @@
-responses==0.25.7
+responses==0.25.8
 requests==2.32.5
 redis==6.2.0
 pytest==8.4.1

@@ -14,7 +14,7 @@ setup_args = {
     "long_description": README,
     "license": "GNU",
     "packages": find_packages(),
-    "author": "M.Shaeri",
+    "author": "R.E",
     "keywords": ["request", "declarative", "api", "rest", "rest client"],
     "url": "https://github.com/birddevelper/dequest",
     "download_url": "https://github.com/birddevelper/dequest",

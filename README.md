@@ -3,7 +3,7 @@
 ![Pre Commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)
 ![Code Style - Ruff](https://img.shields.io/badge/code%20style-ruff-30173D.svg?style=for-the-badge)
 
-Dequest is a full featured declarative HTTP client for Python that simplifies the creation of HTTP requests and retrieves the results as DTO.
+Dequest is a full featured declarative HTTP client for Python that simplifies the creation and sending HTTP requests and retrieves the results as DTO.
 
 ## Why dequest?
 
@@ -210,7 +210,6 @@ breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=10, fallback_func
 def fetch_unstable_data():
     pass
 ```
-
 
 ## Documentation
 

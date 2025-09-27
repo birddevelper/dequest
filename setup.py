@@ -8,7 +8,7 @@ with Path.open("README.md") as readme_file:
 
 setup_args = {
     "name": "dequest",
-    "version": "0.4.1",
+    "version": "0.5.0",
     "description": "Declarative rest client",
     "long_description_content_type": "text/markdown",
     "long_description": README,

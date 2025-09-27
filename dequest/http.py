@@ -1,7 +1,6 @@
 from enum import StrEnum, auto
 
 import httpx
-import requests
 
 from dequest.utils import get_logger
 
@@ -33,7 +32,7 @@ def sync_request(
     consume: ConsumerType,
 ):
     logger.info("Sending %s request to %s", method, url)
-    response = requests.request(
+    response = httpx.request(
         method.upper(),
         url,
         headers=headers,

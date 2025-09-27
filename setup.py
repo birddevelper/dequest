@@ -21,7 +21,6 @@ setup_args = {
 }
 
 install_requires = [
-    "requests>=2.32.3",
     "redis>=5.2.1",
     "defusedxml>=0.7.1",
     "httpx>=0.28.1",

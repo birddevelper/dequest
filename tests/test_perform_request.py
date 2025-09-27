@@ -1,11 +1,12 @@
 import pytest
-import responses
+import respx
+from httpx import Response
 
 from dequest import ConsumerType
 from dequest.clients._sync import _perform_request
 
 
-@responses.activate
+@respx.mock
 def test_perform_request_no_cache():
     expectred_number_of_calls = 4
     api_response = {
@@ -14,11 +15,13 @@ def test_perform_request_no_cache():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/students/1",
-        json=api_response,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=api_response,
+            status_code=200,
+        ),
     )
 
     for _ in range(4):
@@ -40,7 +43,7 @@ def test_perform_request_no_cache():
     assert api.call_count == expectred_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_perform_request_cache_enabled():
     expectred_number_of_calls = 1
     api_response = {
@@ -49,11 +52,13 @@ def test_perform_request_cache_enabled():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/students/1",
-        json=api_response,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=api_response,
+            status_code=200,
+        ),
     )
 
     for _ in range(4):
@@ -75,7 +80,7 @@ def test_perform_request_cache_enabled():
     assert api.call_count == expectred_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_perform_request_post_method():
     expectred_number_of_calls = 4
     api_response = {
@@ -84,11 +89,13 @@ def test_perform_request_post_method():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.add(
-        responses.POST,
+    api = respx.post(
         "https://api.example.com/students/1",
-        json=api_response,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=api_response,
+            status_code=200,
+        ),
     )
 
     for _ in range(4):
@@ -110,7 +117,7 @@ def test_perform_request_post_method():
     assert api.call_count == expectred_number_of_calls
 
 
-@responses.activate
+@respx.mock
 @pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
 def test_perform_request_not_allowed_methods_with_cache(method):
     expectred_number_of_calls = 0
@@ -120,11 +127,13 @@ def test_perform_request_not_allowed_methods_with_cache(method):
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.add(
-        responses.POST,
+    api = respx.post(
         "https://api.example.com/students/1",
-        json=api_response,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=api_response,
+            status_code=200,
+        ),
     )
 
     with pytest.raises(ValueError):

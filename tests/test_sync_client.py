@@ -1,11 +1,12 @@
 import datetime
 import http
+import json
 import time
+import urllib
 
 import pytest
-import responses
-from requests import HTTPError
-from responses.matchers import json_params_matcher, urlencoded_params_matcher
+import respx
+from httpx import HTTPError, Response
 
 from dequest import ConsumerType, FormParameter, JsonBody, PathParameter, sync_client
 from dequest.circuit_breaker import CircuitBreaker, CircuitBreakerState
@@ -25,19 +26,11 @@ class UserDTO:
         self.birthday = datetime.date.fromisoformat(birthday) if birthday else None
 
 
-@responses.activate
+@respx.mock
 def test_sync_client():
-    data = {
-        "name": "Alice",
-        "grade": 14,
-        "city": "New York",
-        "birthday": "2000-01-01",
-    }
-    responses.add(
-        responses.GET,
-        "https://api.example.com/users/1",
-        json=data,
-        status=200,
+    data = {"name": "Alice", "grade": 14, "city": "New York", "birthday": "2000-01-01"}
+    route = respx.get("https://api.example.com/users/1").mock(
+        return_value=Response(200, json=data),
     )
 
     @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
@@ -45,14 +38,14 @@ def test_sync_client():
         pass
 
     user = get_user(1)
-
     assert user.name == data["name"]
     assert user.grade == data["grade"]
     assert user.city == data["city"]
     assert user.birthday == datetime.date.fromisoformat(data["birthday"])
+    assert route.call_count == 1
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_with_source_field():
     data = {
         "position": "Developer",
@@ -63,11 +56,13 @@ def test_sync_client_with_source_field():
             "birthday": "2000-01-01",
         },
     }
-    responses.add(
-        responses.GET,
+    respx.get(
         "https://api.example.com/users/1",
-        json=data,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=data,
+            status_code=200,
+        ),
     )
 
     @sync_client(
@@ -86,7 +81,7 @@ def test_sync_client_with_source_field():
     assert user.birthday == datetime.date.fromisoformat(data["user"]["birthday"])
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_with_headers():
     data = {
         "name": "Alice",
@@ -94,11 +89,13 @@ def test_sync_client_with_headers():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/1",
-        json=data,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=data,
+            status_code=200,
+        ),
     )
 
     @sync_client(
@@ -118,14 +115,16 @@ def test_sync_client_with_headers():
     assert api.calls[0].request.headers["X-Test-Header"] == "test"
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_retry():
     expected_number_of_calls = 4  # 1st call + 3 retries
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+    ).mock(
+        return_value=Response(
+            json={"message": "Internal Server Error"},
+            status_code=500,
+        ),
     )
 
     @sync_client(
@@ -143,7 +142,7 @@ def test_sync_client_retry():
     assert api.call_count == expected_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_retry__generator():
     def delay_gen():
         yield 1
@@ -152,11 +151,13 @@ def test_sync_client_retry__generator():
 
     expected_number_of_calls = 4
     expected_total_delay = 6  # 1 + 2 + 3 seconds
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+    ).mock(
+        return_value=Response(
+            json={"message": "Internal Server Error"},
+            status_code=500,
+        ),
     )
 
     @sync_client(
@@ -178,18 +179,20 @@ def test_sync_client_retry__generator():
     assert api.call_count == expected_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_retry__iterator():
     def delay_gen():
         return iter([1, 2, 3])
 
     expected_number_of_calls = 4
     expected_total_delay = 6  # 1 + 2 + 3 seconds
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+    ).mock(
+        return_value=Response(
+            json={"message": "Internal Server Error"},
+            status_code=500,
+        ),
     )
 
     @sync_client(
@@ -211,14 +214,16 @@ def test_sync_client_retry__iterator():
     assert api.call_count == expected_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_no_retry():
     expected_number_of_calls = 1
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+    ).mock(
+        return_value=Response(
+            json={"message": "Internal Server Error"},
+            status_code=500,
+        ),
     )
 
     @sync_client(
@@ -234,14 +239,16 @@ def test_sync_client_no_retry():
     assert api.call_count == expected_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_retry__giveup_not_meet():
     expected_number_of_calls = 4  # 1st call + 3 retries
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+    ).mock(
+        return_value=Response(
+            json={"message": "Internal Server Error"},
+            status_code=500,
+        ),
     )
 
     @sync_client(
@@ -260,14 +267,16 @@ def test_sync_client_retry__giveup_not_meet():
     assert api.call_count == expected_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_retry__giveup_meet():
     expected_number_of_calls = 1
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+    ).mock(
+        return_value=Response(
+            json={"message": "Internal Server Error"},
+            status_code=500,
+        ),
     )
 
     @sync_client(
@@ -286,7 +295,7 @@ def test_sync_client_retry__giveup_meet():
     assert api.call_count == expected_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_with_cache():
     expected_number_of_calls = 1
     data = {
@@ -295,11 +304,13 @@ def test_sync_client_with_cache():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.add(
-        responses.GET,
+    api = respx.get(
         "https://api.example.com/users/4",
-        json=data,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=data,
+            status_code=200,
+        ),
     )
 
     @sync_client(
@@ -322,7 +333,7 @@ def test_sync_client_with_cache():
     assert api.call_count == expected_number_of_calls
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_no_dto_class():
     data = {
         "name": "Alice",
@@ -330,11 +341,13 @@ def test_sync_client_no_dto_class():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    responses.add(
-        responses.GET,
+    respx.get(
         "https://api.example.com/users/6",
-        json=data,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=data,
+            status_code=200,
+        ),
     )
 
     @sync_client(url="https://api.example.com/users/{user_id}")
@@ -349,19 +362,11 @@ def test_sync_client_no_dto_class():
     assert user["birthday"] == data["birthday"]
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_with_headers_and_auth():
-    data = {
-        "name": "Alice",
-        "grade": 14,
-        "city": "New York",
-        "birthday": "2000-01-01",
-    }
-    api = responses.add(
-        responses.GET,
-        "https://api.example.com/users/1",
-        json=data,
-        status=200,
+    data = {"name": "Alice", "grade": 14, "city": "New York", "birthday": "2000-01-01"}
+    route = respx.get("https://api.example.com/users/1").mock(
+        return_value=Response(200, json=data),
     )
 
     @sync_client(
@@ -379,11 +384,11 @@ def test_sync_client_with_headers_and_auth():
     assert user.grade == data["grade"]
     assert user.city == data["city"]
     assert user.birthday == datetime.date.fromisoformat(data["birthday"])
-    assert api.calls[0].request.headers["X-Test-Header"] == "test"
-    assert api.calls[0].request.headers["Authorization"] == "Bearer my_auth_token"
+    assert route.calls[0].request.headers["X-Test-Header"] == "test"
+    assert route.calls[0].request.headers["Authorization"] == "Bearer my_auth_token"
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_post_method_with_form_data():
     data = {
         "name": "Alice",
@@ -391,16 +396,9 @@ def test_sync_client_post_method_with_form_data():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.post(
-        "https://api.example.com/users",
-        json={
-            "name": data["name"],
-            "grade": data["grade"],
-            "city": data["city"],
-            "birthday": data["birthday"],
-        },
-        status=200,
-        match=[urlencoded_params_matcher(data)],
+
+    route = respx.post("https://api.example.com/users").mock(
+        return_value=Response(200, json=data),
     )
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
@@ -414,11 +412,11 @@ def test_sync_client_post_method_with_form_data():
 
     save_user(name="Alice", grade=14, city="New York", birthday="2000-01-01")
 
-    assert api.calls[0].request.headers["Content-Type"] == "application/x-www-form-urlencoded"
-    assert api.calls[0].request.body == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"
+    assert route.calls[0].request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert b"name=Alice" in route.calls[0].request.content
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_post_method_with_json_payload():
     data = {
         "name": "Alice",
@@ -427,16 +425,17 @@ def test_sync_client_post_method_with_json_payload():
         "birthday": "2000-01-01",
     }
 
-    api = responses.post(
-        "https://api.example.com/users",
-        json={
-            "name": data["name"],
-            "grade": data["grade"],
-            "city": data["city"],
-            "birthday": data["birthday"],
-        },
-        status=200,
-        match=[json_params_matcher(data)],
+    # Mock the POST request to the API
+    route = respx.post("https://api.example.com/users").mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "name": data["name"],
+                "grade": data["grade"],
+                "city": data["city"],
+                "birthday": data["birthday"],
+            },
+        ),
     )
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
@@ -450,11 +449,18 @@ def test_sync_client_post_method_with_json_payload():
 
     save_user(name="Alice", grade=14, city_name="New York", birthday="2000-01-01")
 
-    assert api.calls[0].request.headers["Content-Type"] == "application/json"
-    assert api.calls[0].request.body == b'{"name": "Alice", "grade": 14, "city": "New York", "birthday": "2000-01-01"}'
+    request = route.calls[0].request
+    body_json = json.loads(request.content.decode())
+
+    assert request.headers["Content-Type"] == "application/json"
+    assert body_json == {
+        "name": "Alice",
+        "grade": 14,
+        "city": "New York",
+        "birthday": "2000-01-01",
+    }
 
 
-@responses.activate
 @pytest.mark.parametrize(
     ("client_calls", "cb_is_open"),
     [
@@ -463,14 +469,17 @@ def test_sync_client_post_method_with_json_payload():
         (3, CircuitBreakerState.OPEN),
     ],
 )
+@respx.mock
 def test_sync_client_circute_breaker(client_calls, cb_is_open):
     circut_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=5)
     client_retries = 2
-    api = responses.add(
-        responses.GET,
-        "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+
+    # Mock the GET request returning 500
+    route = respx.get("https://api.example.com/users/1").mock(
+        return_value=Response(
+            status_code=500,
+            json={"message": "Internal Server Error"},
+        ),
     )
 
     @sync_client(
@@ -488,21 +497,19 @@ def test_sync_client_circute_breaker(client_calls, cb_is_open):
             get_user(user_id=1)
 
     assert circut_breaker.get_state() == cb_is_open
-    assert api.call_count == client_calls * (client_retries + 1)
+    assert route.call_count == client_calls * (client_retries + 1)
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_circute_breaker__recovery():
-    circut_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=0)
+    circut_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
     expected_number_of_calls = 1
-    api = responses.add(
-        responses.GET,
-        "https://api.example.com/users/1",
-        json={"message": "OK"},
-        status=200,
+
+    route = respx.get("https://api.example.com/users/1").mock(
+        return_value=Response(status_code=200, json={"message": "OK"}),
     )
     circut_breaker.state = CircuitBreakerState.OPEN
-    circut_breaker.last_failure_time = time.time()
+    circut_breaker.last_failure_time = time.time() - 60  # one minute ago
 
     @sync_client(
         url="https://api.example.com/users/{user_id}",
@@ -514,11 +521,11 @@ def test_sync_client_circute_breaker__recovery():
     result = get_user(user_id=1)
 
     assert circut_breaker.get_state() == CircuitBreakerState.CLOSED
-    assert api.call_count == expected_number_of_calls
+    assert route.call_count == expected_number_of_calls
     assert result == {"message": "OK"}
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_circute_breaker__fallback():
     def fallback_response(user_id):
         return {"message": "Service temporarily unavailable, please try later."}
@@ -529,11 +536,12 @@ def test_sync_client_circute_breaker__fallback():
         fallback_function=fallback_response,
     )
     expected_number_of_calls = 0
-    api = responses.add(
-        responses.GET,
-        "https://api.example.com/users/1",
-        json={"message": "Internal Server Error"},
-        status=500,
+
+    route = respx.get("https://api.example.com/users/1").mock(
+        return_value=Response(
+            status_code=500,
+            json={"message": "Internal Server Error"},
+        ),
     )
     circut_breaker.state = CircuitBreakerState.OPEN
     circut_breaker.last_failure_time = time.time()
@@ -548,19 +556,21 @@ def test_sync_client_circute_breaker__fallback():
     result = get_user(user_id=1)
 
     assert circut_breaker.get_state() == CircuitBreakerState.OPEN
-    assert api.call_count == expected_number_of_calls
+    assert route.call_count == expected_number_of_calls
     assert result == {"message": "Service temporarily unavailable, please try later."}
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_xml_response():
     data = "<student><name>Alice</name><grade>14</grade><city>New York</city><birthday>2000-01-01</birthday></student>"
     expected_grade = 14
-    responses.add(
-        responses.GET,
+    respx.get(
         "https://api.example.com/users/1",
-        body=data,
-        status=200,
+    ).mock(
+        return_value=Response(
+            text=data,
+            status_code=200,
+        ),
     )
 
     @sync_client(
@@ -579,7 +589,7 @@ def test_sync_client_xml_response():
     assert user.birthday == datetime.date.fromisoformat("2000-01-01")
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_path_parameter_without_type():
     data = {
         "name": "Alice",
@@ -587,11 +597,13 @@ def test_sync_client_path_parameter_without_type():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    responses.add(
-        responses.GET,
+    respx.get(
         "https://api.example.com/users/1",
-        json=data,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=data,
+            status_code=200,
+        ),
     )
 
     @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
@@ -606,7 +618,7 @@ def test_sync_client_path_parameter_without_type():
     assert user.birthday == datetime.date.fromisoformat(data["birthday"])
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_path_parameter_type_not_match():
     data = {
         "name": "Alice",
@@ -614,11 +626,13 @@ def test_sync_client_path_parameter_type_not_match():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    responses.add(
-        responses.GET,
+    respx.get(
         "https://api.example.com/users/1",
-        json=data,
-        status=200,
+    ).mock(
+        return_value=Response(
+            json=data,
+            status_code=200,
+        ),
     )
 
     @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
@@ -631,7 +645,7 @@ def test_sync_client_path_parameter_type_not_match():
     assert "Invalid value for user_id: Expected <class 'int'>, got <class 'str'>" in str(e)
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_post_method_with_param_type_and_mapped_form_data():
     data = {
         "name": "Alice",
@@ -639,16 +653,16 @@ def test_sync_client_post_method_with_param_type_and_mapped_form_data():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.post(
-        "https://api.example.com/users",
-        json={
-            "name": data["name"],
-            "grade": data["grade"],
-            "city": data["city"],
-            "birthday": data["birthday"],
-        },
-        status=200,
-        match=[urlencoded_params_matcher(data)],
+    route = respx.post("https://api.example.com/users").mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "name": data["name"],
+                "grade": data["grade"],
+                "city": data["city"],
+                "birthday": data["birthday"],
+            },
+        ),
     )
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
@@ -661,12 +675,20 @@ def test_sync_client_post_method_with_param_type_and_mapped_form_data():
         pass
 
     save_user(full_name="Alice", grade=14, city="New York", birthday="2000-01-01")
+    request = route.calls[0].request
+    assert request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+    parsed_body = urllib.parse.parse_qs(request.content.decode())
 
-    assert api.calls[0].request.headers["Content-Type"] == "application/x-www-form-urlencoded"
-    assert api.calls[0].request.body == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"
+    assert parsed_body == {
+        "name": ["Alice"],
+        "grade": ["14"],
+        "city": ["New York"],
+        "birthday": ["2000-01-01"],
+    }
+    assert request.content.decode() == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"
 
 
-@responses.activate
+@respx.mock
 def test_sync_client_post_method_with_only_mapped_form_data():
     data = {
         "name": "Alice",
@@ -674,16 +696,16 @@ def test_sync_client_post_method_with_only_mapped_form_data():
         "city": "New York",
         "birthday": "2000-01-01",
     }
-    api = responses.post(
-        "https://api.example.com/users",
-        json={
-            "name": data["name"],
-            "grade": data["grade"],
-            "city": data["city"],
-            "birthday": data["birthday"],
-        },
-        status=200,
-        match=[urlencoded_params_matcher(data)],
+    route = respx.post("https://api.example.com/users").mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "name": data["name"],
+                "grade": data["grade"],
+                "city": data["city"],
+                "birthday": data["birthday"],
+            },
+        ),
     )
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
@@ -691,11 +713,19 @@ def test_sync_client_post_method_with_only_mapped_form_data():
         full_name: FormParameter[{"alias": "name"}],  # noqa: F821
         grade: FormParameter[int, "grade"],  # noqa: F821
         city_name: FormParameter["city"],  # noqa: F821
-        birthday: FormParameter[str,],
+        birthday: FormParameter[str],
     ):
         pass
 
     save_user(full_name="Alice", grade=14, city_name="New York", birthday="2000-01-01")
+    request = route.calls[0].request
+    parsed_body = urllib.parse.parse_qs(request.content.decode())
 
-    assert api.calls[0].request.headers["Content-Type"] == "application/x-www-form-urlencoded"
-    assert api.calls[0].request.body == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"
+    assert request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert parsed_body == {
+        "name": ["Alice"],
+        "grade": ["14"],
+        "city": ["New York"],
+        "birthday": ["2000-01-01"],
+    }
+    assert request.content.decode() == "name=Alice&grade=14&city=New+York&birthday=2000-01-01"

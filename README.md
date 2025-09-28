@@ -168,7 +168,9 @@ new_user = create_user(name="Alice", city="Berlin")
 Automatically retry failed requests on specified exceptions:
 
 ```python
-@sync_client(url="https://api.example.com/data", retries=3, retry_on_exceptions=(ConnectionError, HTTPError), retry_delay=2)
+from dequest.exceptions import HTTPError, ConnectTimeout
+
+@sync_client(url="https://api.example.com/data", retries=3, retry_on_exceptions=(HTTPError, ConnectTimeout), retry_delay=2)
 def get_data():
     pass
 ```

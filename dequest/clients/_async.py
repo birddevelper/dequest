@@ -235,7 +235,6 @@ def async_client(  # noqa: PLR0915
                                 f"Dequest client failed: {e!s}",
                             ) from e
 
-            # Run the async function in the existing event loop or in the background loop
             loop = AsyncLoopManager.get_event_loop()
             asyncio.run_coroutine_threadsafe(run_request(), loop)
 

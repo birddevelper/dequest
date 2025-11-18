@@ -11,7 +11,7 @@ logger = get_logger()
 class CircuitBreakerState(Enum):
     CLOSED = "CLOSED"
     OPEN = "OPEN"
-    HALF_OPEN = "HALF_OPEN"  # Allowing a single test request
+    HALF_OPEN = "HALF_OPEN"
 
 
 class CircuitBreaker:

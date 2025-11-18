@@ -1,11 +1,12 @@
 from dequest import DequestConfig
+from dequest.config import CacheProvider
 
 
 def test_get_config():
     expected_port = 6379
     expected_redis_db = 0
     DequestConfig.config(
-        CACHE_PROVIDER="redis",
+        CACHE_PROVIDER=CacheProvider.REDIS,
         REDIS_HOST="localhost",
         REDIS_PORT=6379,
         REDIS_DB=0,

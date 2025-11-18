@@ -67,21 +67,6 @@ pip install dequest
 
 ## Getting Started
 
-## Configuration
-Dequest allows global configuration via `DequestConfig`, the configuration can be set using `.config` method of the `DequestConfig` class:
-
-```python
-from dequest import DequestConfig
-
-DequestConfig.config(
-    cache_provider="redis", # defaults to "in_memory"
-    redis_host="my-redis-server.com",
-    redis_port=6380,
-    redis_db=1,
-    redis_password="securepassword",
-    redis_ssl=True,
-)
-```
 
 ### Synchronous API Calls
 Use `@sync_client` to make synchronous HTTP requests without writing boilerplate code:
@@ -211,6 +196,22 @@ breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=10, fallback_func
 @sync_client(url="https://api.unstable.com/data", circuit_breaker=breaker)
 def fetch_unstable_data():
     pass
+```
+
+## Configuration
+Dequest allows global configuration via `DequestConfig`, the configuration can be set using `.config` method of the `DequestConfig` class:
+
+```python
+from dequest import DequestConfig
+
+DequestConfig.config(
+    cache_provider=CacheProvider.REDIS, # defaults is "in_memory"
+    redis_host="my-redis-server",
+    redis_port=6380,
+    redis_db=1,
+    redis_password="securepassword",
+    redis_ssl=True,
+)
 ```
 
 ## Documentation

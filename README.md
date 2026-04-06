@@ -17,7 +17,7 @@ Dequest is a full featured declarative HTTP client for Python that simplifies th
   Supports Pydantic-style DTOs, typed parameters, and response mapping—minimizing runtime surprises.
 
 * **Resilient by default:**
-  Built-in support for **retries**, **caching**, and **circuit breakers**. Your APIs won't bring your app down.
+  Built-in support for **retries**, **caching**, and **circuit breakers**. Your APIs won’t bring your app down.
 
 * **Declarative and elegant:**
   Define path, query, form, and body parameters cleanly with `PathParameter`, `QueryParameter`, `JsonBody`, etc.
@@ -84,11 +84,9 @@ class UserDto:
 
 
 @sync_client(url="https://jsonplaceholder.typicode.com/users", dto_class=UserDto)
-def get_users(city: str = QueryParameter(default="Berlin", alias="city_name")) -> List[UserDto]:
+def get_users(city: QueryParameter[str, "city_name"]) -> List[UserDto]:
     pass
 
-users = get_users()  # Uses default "Berlin"
-# or
 users = get_users(city="New York")
 print(users)
 ```
@@ -117,7 +115,7 @@ Pass values inside the URL using `PathParameter`:
 from dequest import sync_client, PathParameter
 
 @sync_client(url="https://jsonplaceholder.typicode.com/users/{user_id}", dto_class=UserDto)
-def get_user(user_id: int = PathParameter()) -> UserDto:
+def get_user(user_id: PathParameter[int]) -> UserDto:
     pass
 
 user = get_user(user_id=1)
@@ -131,52 +129,20 @@ Pass values as URL query parameters using `QueryParameter`:
 from dequest import sync_client, QueryParameter
 
 @sync_client(url="https://api.example.com/search", dto_class=UserDto)
-def search_users(name: str = QueryParameter()) -> List[UserDto]:
+def search_users(name: QueryParameter[str]):
     pass
 
 users = search_users(name="Alice")
 ```
 
-You can also set defaults and aliases:
-
-```python
-from dequest import sync_client, QueryParameter
-
-@sync_client(url="https://api.example.com/search", dto_class=UserDto)
-def search_users(
-    name: str = QueryParameter(default="", alias="search_name")
-) -> List[UserDto]:
-    pass
-
-users = search_users()  # Uses empty string default
-# or
-users = search_users(name="Alice")  # Sent as query param 'search_name=Alice'
-```
-
-### Form Parameters
-Pass values as form data using `FormParameter`:
-
-```python
-from dequest import sync_client, FormParameter
-
-@sync_client(url="https://api.example.com/users", method="POST", dto_class=UserDto)
-def create_user(
-    name: str = FormParameter(),
-    email: str = FormParameter(alias="email_address")
-) -> UserDto:
-    pass
-
-user = create_user(name="Alice", email="alice@example.com")
-```
-
-### JSON Body Parameters
+### JSON Parameters
 For POST requests pass values as JSON payload using `JsonBody`:
 
 ```python
 from dequest import sync_client, HTTPMethod, JsonBody
 
 @sync_client(url="https://api.example.com/users", method=HTTPMethod.POST, dto_class=UserDto)
-def create_user(name: str = JsonBody(), city: str = JsonBody()) -> UserDto:
+def create_user(name: JsonBody, city: JsonBody) -> UserDto:
     pass
 
 new_user = create_user(name="Alice", city="Berlin")

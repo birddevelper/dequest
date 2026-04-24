@@ -8,7 +8,14 @@ import pytest
 import respx
 from httpx import HTTPError, Response
 
-from dequest import ConsumerType, FormParameter, JsonBody, PathParameter, sync_client
+from dequest import (
+    ConsumerType,
+    FormParameter,
+    JsonBody,
+    PathParameter,
+    QueryParameter,
+    sync_client,
+)
 from dequest.circuit_breaker import CircuitBreaker, CircuitBreakerState
 from dequest.exceptions import DequestError, InvalidParameterValueError
 
@@ -34,7 +41,7 @@ def test_sync_client():
     )
 
     @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     user = get_user(1)
@@ -70,7 +77,7 @@ def test_sync_client_with_source_field():
         dto_class=UserDTO,
         source_field="user",
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     user = get_user(1)
@@ -103,7 +110,7 @@ def test_sync_client_with_headers():
         dto_class=UserDTO,
         headers={"X-Test-Header": "test"},
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     user = get_user(1)
@@ -133,7 +140,7 @@ def test_sync_client_retry():
         retries=3,
         retry_on_exceptions=(HTTPError,),
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     with pytest.raises(DequestError):
@@ -167,7 +174,7 @@ def test_sync_client_retry__generator():
         retry_delay=delay_gen,
         retry_on_exceptions=(HTTPError,),
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     start_time = time.time()
@@ -202,7 +209,7 @@ def test_sync_client_retry__iterator():
         retry_delay=delay_gen,
         retry_on_exceptions=(HTTPError,),
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     start_time = time.time()
@@ -230,7 +237,7 @@ def test_sync_client_no_retry():
         url="https://api.example.com/users/{user_id}",
         dto_class=UserDTO,
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     with pytest.raises(DequestError):
@@ -258,7 +265,7 @@ def test_sync_client_retry__giveup_not_meet():
         retry_on_exceptions=(HTTPError,),
         giveup=lambda e: e.response.status_code == http.HTTPStatus.NOT_FOUND,
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     with pytest.raises(DequestError):
@@ -286,7 +293,7 @@ def test_sync_client_retry__giveup_meet():
         retry_on_exceptions=(HTTPError,),
         giveup=lambda e: e.response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR,
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     with pytest.raises(DequestError):
@@ -318,7 +325,7 @@ def test_sync_client_with_cache():
         dto_class=UserDTO,
         enable_cache=True,
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     for _ in range(4):
@@ -351,7 +358,7 @@ def test_sync_client_no_dto_class():
     )
 
     @sync_client(url="https://api.example.com/users/{user_id}")
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     user = get_user(user_id=6)
@@ -375,7 +382,7 @@ def test_sync_client_with_headers_and_auth():
         headers={"X-Test-Header": "test"},
         auth_token="my_auth_token",  # noqa: S106
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     user = get_user(user_id=1)
@@ -403,10 +410,10 @@ def test_sync_client_post_method_with_form_data():
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
     def save_user(
-        name: FormParameter[str],
-        grade: FormParameter[int],
-        city: FormParameter[str],
-        birthday: FormParameter[str],
+        name: str = FormParameter(),
+        grade: int = FormParameter(),
+        city: str = FormParameter(),
+        birthday: str = FormParameter(),
     ):
         pass
 
@@ -440,10 +447,10 @@ def test_sync_client_post_method_with_json_payload():
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
     def save_user(
-        name: JsonBody,
-        grade: JsonBody,
-        city_name: JsonBody["city"],  # noqa: F821
-        birthday: JsonBody,
+        name: str = JsonBody(),
+        grade: int = JsonBody(),
+        city_name: str = JsonBody(alias="city"),
+        birthday: str = JsonBody(),
     ):
         pass
 
@@ -459,6 +466,22 @@ def test_sync_client_post_method_with_json_payload():
         "city": "New York",
         "birthday": "2000-01-01",
     }
+
+
+@respx.mock
+def test_sync_client_with_query_parameter_default_and_alias():
+    route = respx.get("https://api.example.com/search").mock(
+        return_value=Response(200, json={"message": "OK"}),
+    )
+
+    @sync_client(url="https://api.example.com/search")
+    def search_users(name: str = QueryParameter(default="Alice", alias="fullname")):
+        pass
+
+    response = search_users()
+
+    assert response == {"message": "OK"}
+    assert route.calls[0].request.url.params["fullname"] == "Alice"
 
 
 @pytest.mark.parametrize(
@@ -489,7 +512,7 @@ def test_sync_client_circute_breaker(client_calls, cb_is_open):
         retry_on_exceptions=(HTTPError,),
         circuit_breaker=circut_breaker,
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     for _ in range(client_calls):
@@ -515,7 +538,7 @@ def test_sync_client_circute_breaker__recovery():
         url="https://api.example.com/users/{user_id}",
         circuit_breaker=circut_breaker,
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     result = get_user(user_id=1)
@@ -550,7 +573,7 @@ def test_sync_client_circute_breaker__fallback():
         url="https://api.example.com/users/{user_id}",
         circuit_breaker=circut_breaker,
     )
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     result = get_user(user_id=1)
@@ -573,20 +596,28 @@ def test_sync_client_xml_response():
         ),
     )
 
-    @sync_client(
-        url="https://api.example.com/users/{user_id}",
-        dto_class=UserDTO,
-        consume=ConsumerType.XML,
-    )
-    def get_user(user_id: PathParameter[int]):
-        pass
+    with pytest.warns(
+        FutureWarning,
+        match=r"`PathParameter\[\.\.\.\]` subscription style is deprecated",
+    ):
 
-    user = get_user(1)
+        @sync_client(
+            url="https://api.example.com/users/{user_id}",
+            dto_class=UserDTO,
+            consume=ConsumerType.XML,
+        )
+        # TODO: The deprecated old subscription style is used here for testing purpose,
+        # Update to use standard annotation with parameter marker when the old
+        # subscription style is removed in the future.
+        def get_user(user_id: PathParameter[int]):
+            pass
 
-    assert user.name == "Alice"
-    assert user.grade == expected_grade
-    assert user.city == "New York"
-    assert user.birthday == datetime.date.fromisoformat("2000-01-01")
+        user = get_user(1)
+
+        assert user.name == "Alice"
+        assert user.grade == expected_grade
+        assert user.city == "New York"
+        assert user.birthday == datetime.date.fromisoformat("2000-01-01")
 
 
 @respx.mock
@@ -636,7 +667,7 @@ def test_sync_client_path_parameter_type_not_match():
     )
 
     @sync_client(url="https://api.example.com/users/{user_id}", dto_class=UserDTO)
-    def get_user(user_id: PathParameter[int]):
+    def get_user(user_id: int = PathParameter()):
         pass
 
     with pytest.raises(InvalidParameterValueError) as e:
@@ -665,14 +696,26 @@ def test_sync_client_post_method_with_param_type_and_mapped_form_data():
         ),
     )
 
-    @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
-    def save_user(
-        full_name: FormParameter[str, "name"],  # noqa: F821
-        grade: FormParameter[int],
-        city: FormParameter[str],
-        birthday: FormParameter[str],
+    # TODO: The deprecated old subscription style is used here for testing purpose,
+    # Update to use standard annotation with parameter marker when the old
+    # subscription style is removed in the future.
+    with pytest.warns(
+        FutureWarning,
+        match=r"`FormParameter\[\.\.\.\]` subscription style is deprecated",
     ):
-        pass
+
+        @sync_client(
+            url="https://api.example.com/users",
+            dto_class=UserDTO,
+            method="POST",
+        )
+        def save_user(
+            full_name: FormParameter[str, "name"],  # noqa: F821
+            grade: int = FormParameter(),
+            city: str = FormParameter(alias="city"),
+            birthday: str = FormParameter(),
+        ):
+            pass
 
     save_user(full_name="Alice", grade=14, city="New York", birthday="2000-01-01")
     request = route.calls[0].request
@@ -710,10 +753,10 @@ def test_sync_client_post_method_with_only_mapped_form_data():
 
     @sync_client(url="https://api.example.com/users", dto_class=UserDTO, method="POST")
     def save_user(
-        full_name: FormParameter[{"alias": "name"}],  # noqa: F821
-        grade: FormParameter[int, "grade"],  # noqa: F821
-        city_name: FormParameter["city"],  # noqa: F821
-        birthday: FormParameter[str],
+        full_name: str = FormParameter(alias="name"),
+        grade: int = FormParameter(alias="grade"),
+        city_name: str = FormParameter(alias="city"),
+        birthday: str = FormParameter(),
     ):
         pass
 

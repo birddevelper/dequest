@@ -84,7 +84,7 @@ class UserDto:
 
 
 @sync_client(url="https://jsonplaceholder.typicode.com/users", dto_class=UserDto)
-def get_users(city: QueryParameter[str, "city_name"]) -> List[UserDto]:
+def get_users(city: str = QueryParameter(default="Paris", alias="city_name")) -> List[UserDto]:
     pass
 
 users = get_users(city="New York")
@@ -115,7 +115,7 @@ Pass values inside the URL using `PathParameter`:
 from dequest import sync_client, PathParameter
 
 @sync_client(url="https://jsonplaceholder.typicode.com/users/{user_id}", dto_class=UserDto)
-def get_user(user_id: PathParameter[int]) -> UserDto:
+def get_user(user_id: int = PathParameter()) -> UserDto:
     pass
 
 user = get_user(user_id=1)
@@ -129,7 +129,7 @@ Pass values as URL query parameters using `QueryParameter`:
 from dequest import sync_client, QueryParameter
 
 @sync_client(url="https://api.example.com/search", dto_class=UserDto)
-def search_users(name: QueryParameter[str]):
+def search_users(name: str = QueryParameter()):
     pass
 
 users = search_users(name="Alice")
@@ -142,11 +142,39 @@ For POST requests pass values as JSON payload using `JsonBody`:
 from dequest import sync_client, HTTPMethod, JsonBody
 
 @sync_client(url="https://api.example.com/users", method=HTTPMethod.POST, dto_class=UserDto)
-def create_user(name: JsonBody, city: JsonBody) -> UserDto:
+def create_user(name: str = JsonBody(), city: str = JsonBody()) -> UserDto:
     pass
 
 new_user = create_user(name="Alice", city="Berlin")
 ```
+
+## Deprecated Parameter Syntax
+The old subscription-based parameter style is deprecated and will be removed in a future release.
+
+Deprecated style:
+
+```python
+from dequest import sync_client, QueryParameter
+
+@sync_client(url="https://api.example.com/search")
+def search_users(name: QueryParameter[str, "fullname"]):
+    pass
+```
+
+Use the new FastAPI-style declaration instead:
+
+```python
+from dequest import sync_client, QueryParameter
+
+@sync_client(url="https://api.example.com/search")
+def search_users(name: str = QueryParameter(alias="fullname")):
+    pass
+```
+
+Notes:
+- The Python type now comes from the normal annotation, such as `name: str`.
+- Mapping options such as `alias` and `default` now go inside `QueryParameter(...)`, `PathParameter(...)`, `FormParameter(...)`, or `JsonBody(...)`.
+- If old-style subscription syntax is still used, Dequest emits a `FutureWarning` to help identify code that should be migrated.
 
 ## Advanced Features
 ### Retries

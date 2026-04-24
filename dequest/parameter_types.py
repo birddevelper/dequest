@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Generic, Protocol, TypeVar
 
 T = TypeVar("T")
@@ -48,25 +49,47 @@ def _make_parameter(cls: type, params: Any) -> type:
     return type(new_name, (cls,), {"__base_type__": base_type, "__alias__": alias})
 
 
-class PathParameter(Generic[T]):
+class _ParameterUnset:
+    def __repr__(self) -> str:
+        return "ParameterUnset"
+
+
+PARAMETER_UNSET = _ParameterUnset()
+
+
+class ParameterDefinition:
+    __base_type__ = None
+    __alias__ = None
+
+    def __init__(self, default: Any = PARAMETER_UNSET, alias: str | None = None):
+        self.default = default
+        self.alias = alias
+
     @classmethod
     def __class_getitem__(cls, params: Any):
+        warnings.warn(
+            (
+                f"`{cls.__name__}[...]` subscription style is deprecated and will be removed "
+                f"in a future release. Use a standard annotation with a parameter marker "
+                f'default instead, for example: `param: str = {cls.__name__}(alias="...")`.'
+            ),
+            FutureWarning,
+            stacklevel=2,
+        )
         return _make_parameter(cls, params)
 
 
-class QueryParameter(Generic[T]):
-    @classmethod
-    def __class_getitem__(cls, params: Any):
-        return _make_parameter(cls, params)
+class PathParameter(ParameterDefinition, Generic[T]):
+    pass
 
 
-class FormParameter(Generic[T]):
-    @classmethod
-    def __class_getitem__(cls, params: Any):
-        return _make_parameter(cls, params)
+class QueryParameter(ParameterDefinition, Generic[T]):
+    pass
 
 
-class JsonBody:
-    @classmethod
-    def __class_getitem__(cls, params: Any):
-        return _make_parameter(cls, params)
+class FormParameter(ParameterDefinition, Generic[T]):
+    pass
+
+
+class JsonBody(ParameterDefinition):
+    pass

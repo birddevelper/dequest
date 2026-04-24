@@ -8,13 +8,13 @@ with Path.open("README.md") as readme_file:
 
 setup_args = {
     "name": "dequest",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "Declarative rest client",
     "long_description_content_type": "text/markdown",
     "long_description": README,
     "license": "GNU",
     "packages": find_packages(),
-    "author": "R.E",
+    "author": "Bird Developer",
     "keywords": ["request", "declarative", "api", "rest", "rest client"],
     "url": "https://github.com/birddevelper/dequest",
     "download_url": "https://github.com/birddevelper/dequest",

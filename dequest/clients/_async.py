@@ -8,7 +8,7 @@ from typing import TypeVar, Union
 from dequest.cache import get_cache
 from dequest.circuit_breaker import CircuitBreaker
 from dequest.config import DequestConfig
-from dequest.exceptions import CircuitBreakerOpenError, DequestError
+from dequest.exceptions import DequestError
 from dequest.http import ConsumerType, async_request
 from dequest.utils import (
     AsyncLoopManager,
@@ -16,8 +16,14 @@ from dequest.utils import (
     generate_cache_key,
     get_logger,
     get_next_delay,
-    map_json_to_dto,
-    map_xml_to_dto,
+)
+
+from ._common import (
+    _handle_circuit_breaker,
+    _map_response,
+    _prepare_headers,
+    _resolve_optional_callable,
+    _should_retry,
 )
 
 T = TypeVar("T")
@@ -77,7 +83,82 @@ async def _perform_request(
     return response_data
 
 
-def async_client(  # noqa: PLR0915
+async def _execute_async_request(
+    formatted_url: str,
+    method: str,
+    headers: dict[str, str],
+    json_body: dict | None,
+    query_params: dict | None,
+    form_params: dict | None,
+    timeout: int,
+    enable_cache: bool,
+    cache_ttl: int | None,
+    consume: ConsumerType,
+    dto_class: type[T] | None,
+    source_field: str | None,
+    retries: int,
+    retry_on_exceptions: tuple[Exception, ...] | None,
+    retry_delay: Union[float, Callable[[], Iterator]],
+    giveup: Callable[[Exception], bool] | None,
+    circuit_breaker: CircuitBreaker | None,
+    callback: Callable[[Union[T, dict]], None] | None,
+) -> T | dict:
+    _retry_delay = _resolve_optional_callable(retry_delay)
+
+    for attempt in range(1, retries + 2):
+        try:
+            response_data = await _perform_request(
+                formatted_url,
+                method,
+                headers,
+                json_body,
+                query_params,
+                form_params,
+                timeout,
+                enable_cache,
+                cache_ttl,
+                consume,
+            )
+
+            if circuit_breaker:
+                circuit_breaker.record_success()
+
+            result = _map_response(response_data, dto_class, source_field, consume)
+
+            if callback:
+                callback_result = callback(result)
+                if asyncio.iscoroutine(callback_result):
+                    await callback_result
+
+            return result
+
+        except Exception as error:
+            if _should_retry(error, retry_on_exceptions, giveup) and attempt < retries + 1:
+                logger.error("Dequest client error: %s", error)
+                delay = get_next_delay(_retry_delay)
+                logger.info(
+                    "Retrying in %s seconds... (Attempt %s/%s)",
+                    delay,
+                    attempt,
+                    retries,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            if circuit_breaker:
+                circuit_breaker.record_failure()
+
+            if _should_retry(error, retry_on_exceptions, giveup):
+                raise DequestError(
+                    f"Dequest client failed after {retries} attempts: {error!s}",
+                ) from error
+
+            raise DequestError(f"Dequest client failed: {error!s}") from error
+
+    return None  # This line should never be reached
+
+
+def async_client(
     url: str,
     dto_class: type[T] | None = None,
     source_field: str | None = None,
@@ -97,8 +178,8 @@ def async_client(  # noqa: PLR0915
     consume: ConsumerType = ConsumerType.JSON,
 ):
     """
-    A decorator to make asynchronous HTTP requests without requiring the user to handle async execution.
-    The decorated function should NOT be awaited. If awaiting is needed, use `sync_client` instead.
+    A decorator to make asynchronous fire-and-forget HTTP requests without requiring the user to handle async execution.
+    The decorated function should NOT be awaited. If awaiting is needed, use `async_await_client` instead.
 
     :param url: URL template with placeholders for path parameters.
     :param dto_class: The DTO class to map the response data.
@@ -119,11 +200,11 @@ def async_client(  # noqa: PLR0915
     :param consume: Type of data to consume. ConsumerType.JSON, ConsumerType.XML or ConsumerType.TEXT
     """
 
-    def decorator(func):  # noqa: PLR0915
+    def decorator(func):
         signature = inspect.signature(func)
 
         @wraps(func)
-        def wrapper(*args, **kwargs) -> None:  # noqa: PLR0915
+        def wrapper(*args, **kwargs) -> None:
             """
             Executes the decorated function asynchronously inside an event loop.
             The user does NOT need to `await` the function.
@@ -137,33 +218,23 @@ def async_client(  # noqa: PLR0915
 
             formatted_url = url.format(**path_params)
 
-            request_headers = headers() if callable(headers) else (headers or {})
-            token_value = auth_token() if callable(auth_token) else auth_token
-            api_key_value = api_key() if callable(api_key) else api_key
-            _retry_delay = retry_delay() if callable(retry_delay) else retry_delay
-
-            if token_value:
-                request_headers["Authorization"] = f"Bearer {token_value}"
-            if api_key_value:
-                request_headers["x-api-key"] = api_key_value
+            request_headers = _prepare_headers(headers, auth_token, api_key)
+            _retry_delay = _resolve_optional_callable(retry_delay)
 
             async def run_request():
-                if circuit_breaker and not circuit_breaker.allow_request():
-                    logger.warning(
-                        "Circuit breaker blocking requests to %s",
-                        formatted_url,
-                    )
-                    if circuit_breaker.fallback_function:
-                        task = asyncio.create_task(
-                            circuit_breaker.fallback_function(*args, **kwargs),
-                        )
+                blocked, fallback_response = _handle_circuit_breaker(
+                    circuit_breaker,
+                    formatted_url,
+                    args,
+                    kwargs,
+                    is_async=True,
+                )
+                if blocked:
+                    if asyncio.iscoroutine(fallback_response):
+                        task = asyncio.create_task(fallback_response)
                         background_tasks.add(task)
                         task.add_done_callback(background_tasks.discard)
-                        return
-
-                    raise CircuitBreakerOpenError(
-                        f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.",
-                    )
+                    return
 
                 for attempt in range(1, retries + 2):  # 1st call + retries
                     try:
@@ -184,14 +255,11 @@ def async_client(  # noqa: PLR0915
                             circuit_breaker.record_success()
 
                         if dto_class:
-                            dto_object = (
-                                map_json_to_dto(dto_class, response_data, source_field)
-                                if consume == ConsumerType.JSON
-                                else map_xml_to_dto(
-                                    dto_class,
-                                    response_data,
-                                    source_field,
-                                )
+                            dto_object = _map_response(
+                                response_data,
+                                dto_class,
+                                source_field,
+                                consume,
                             )
                             if callback:
                                 task = asyncio.create_task(
@@ -209,8 +277,7 @@ def async_client(  # noqa: PLR0915
                         return
 
                     except Exception as e:
-                        _giveup = giveup(e) if giveup else False
-                        if retry_on_exceptions and isinstance(e, retry_on_exceptions) and not _giveup:
+                        if _should_retry(e, retry_on_exceptions, giveup):
                             logger.error("Dequest client error: %s", e)
                             if attempt < retries + 1:
                                 delay = get_next_delay(_retry_delay)
@@ -237,6 +304,102 @@ def async_client(  # noqa: PLR0915
 
             loop = AsyncLoopManager.get_event_loop()
             asyncio.run_coroutine_threadsafe(run_request(), loop)
+
+        return wrapper
+
+    return decorator
+
+
+def async_await_client(
+    url: str,
+    dto_class: type[T] | None = None,
+    source_field: str | None = None,
+    method: str = "GET",
+    timeout: int = 30,
+    retries: int = 0,
+    retry_on_exceptions: tuple[Exception, ...] | None = None,
+    retry_delay: Union[float, Callable[[], Iterator]] = 2.0,
+    giveup: Callable[[Exception], bool] | None = None,
+    auth_token: Union[str, Callable[[], str]] | None = None,
+    api_key: Union[str, Callable[[], str]] | None = None,
+    headers: Union[dict[str, str], Callable[[], dict[str, str]]] | None = None,
+    enable_cache: bool = False,
+    cache_ttl: int | None = None,
+    circuit_breaker: CircuitBreaker | None = None,
+    callback: Callable[[Union[T, dict]], None] | None = None,
+    consume: ConsumerType = ConsumerType.JSON,
+):
+    """
+    A decorator to make asynchronous HTTP requests and return a result that can be awaited.
+    The decorated function should be awaited inside an async function.
+
+    :param url: URL template with placeholders for path parameters.
+    :param dto_class: The DTO class to map the response data.
+    :param source_field: Source field to use for mapping response data. Leave None to map whole response.
+    :param method: HTTP method (GET, POST, PUT, DELETE).
+    :param timeout: Request timeout in seconds.
+    :param retries: Number of retries on failure.
+    :param retry_on_exceptions: Exceptions to retry on.
+    :param retry_delay: Delay in seconds between retries. Can be a static value or a function returning iterator.
+    :param giveup: Function to determine if the retry should be given up.
+    :param auth_token: Optional Bearer Token (static string or function returning a string).
+    :param api_key: Optional API key (static string or function returning a string).
+    :param headers: Optional default headers (can be a dict or a function returning a dict).
+    :param enable_cache: Whether to cache GET responses.
+    :param cache_ttl: Cache expiration time in seconds.
+    :param circuit_breaker: Instance of CircuitBreaker (optional).
+    :param callback: Optional function to process the response when available.
+    :param consume: Type of data to consume. ConsumerType.JSON, ConsumerType.XML or ConsumerType.TEXT
+    """
+
+    def decorator(func):
+        signature = inspect.signature(func)
+
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            if consume == ConsumerType.TEXT and dto_class:
+                raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
+
+            path_params, query_params, form_params, json_body = extract_parameters(
+                signature,
+                args,
+                kwargs,
+            )
+            formatted_url = url.format(**path_params)
+            request_headers = _prepare_headers(headers, auth_token, api_key)
+
+            blocked, fallback_response = _handle_circuit_breaker(
+                circuit_breaker,
+                formatted_url,
+                args,
+                kwargs,
+                is_async=True,
+            )
+            if blocked:
+                if asyncio.iscoroutine(fallback_response):
+                    return await fallback_response
+                return fallback_response
+
+            return await _execute_async_request(
+                formatted_url,
+                method,
+                request_headers,
+                json_body,
+                query_params,
+                form_params,
+                timeout,
+                enable_cache,
+                cache_ttl,
+                consume,
+                dto_class,
+                source_field,
+                retries,
+                retry_on_exceptions,
+                retry_delay,
+                giveup,
+                circuit_breaker,
+                callback,
+            )
 
         return wrapper
 

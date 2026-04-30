@@ -138,6 +138,7 @@ def test_sync_client_retry():
         url="https://api.example.com/users/{user_id}",
         dto_class=UserDTO,
         retries=3,
+        retry_delay=0.2,
         retry_on_exceptions=(HTTPError,),
     )
     def get_user(user_id: int = PathParameter()):
@@ -152,12 +153,12 @@ def test_sync_client_retry():
 @respx.mock
 def test_sync_client_retry__generator():
     def delay_gen():
-        yield 1
-        yield 2
-        yield 3
+        yield 0.2
+        yield 0.3
+        yield 0.5
 
     expected_number_of_calls = 4
-    expected_total_delay = 6  # 1 + 2 + 3 seconds
+    expected_total_delay = 1  # 0.2 + 0.3 + 0.5 seconds
     api = respx.get(
         "https://api.example.com/users/1",
     ).mock(
@@ -189,10 +190,10 @@ def test_sync_client_retry__generator():
 @respx.mock
 def test_sync_client_retry__iterator():
     def delay_gen():
-        return iter([1, 2, 3])
+        return iter([0.2, 0.3, 0.5])
 
     expected_number_of_calls = 4
-    expected_total_delay = 6  # 1 + 2 + 3 seconds
+    expected_total_delay = 1  # 0.2 + 0.3 + 0.5 seconds
     api = respx.get(
         "https://api.example.com/users/1",
     ).mock(
@@ -262,6 +263,7 @@ def test_sync_client_retry__giveup_not_meet():
         url="https://api.example.com/users/{user_id}",
         dto_class=UserDTO,
         retries=3,
+        retry_delay=0.3,
         retry_on_exceptions=(HTTPError,),
         giveup=lambda e: e.response.status_code == http.HTTPStatus.NOT_FOUND,
     )
@@ -290,6 +292,7 @@ def test_sync_client_retry__giveup_meet():
         url="https://api.example.com/users/{user_id}",
         dto_class=UserDTO,
         retries=3,
+        retry_delay=0.3,
         retry_on_exceptions=(HTTPError,),
         giveup=lambda e: e.response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR,
     )
@@ -509,6 +512,7 @@ def test_sync_client_circute_breaker(client_calls, cb_is_open):
         url="https://api.example.com/users/{user_id}",
         dto_class=UserDTO,
         retries=client_retries,
+        retry_delay=0.1,
         retry_on_exceptions=(HTTPError,),
         circuit_breaker=circut_breaker,
     )

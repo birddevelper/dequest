@@ -8,15 +8,21 @@ from typing import TypeVar, Union
 from dequest.cache import get_cache
 from dequest.circuit_breaker import CircuitBreaker
 from dequest.config import DequestConfig
-from dequest.exceptions import CircuitBreakerOpenError, DequestError
+from dequest.exceptions import DequestError
 from dequest.http import ConsumerType, sync_request
 from dequest.utils import (
     extract_parameters,
     generate_cache_key,
     get_logger,
     get_next_delay,
-    map_json_to_dto,
-    map_xml_to_dto,
+)
+
+from ._common import (
+    _handle_circuit_breaker,
+    _map_response,
+    _prepare_headers,
+    _resolve_optional_callable,
+    _should_retry,
 )
 
 T = TypeVar("T")
@@ -39,9 +45,7 @@ def _perform_request(
     method = method.upper()
 
     if (enable_cache or cache_ttl) and method != "GET":
-        raise ValueError(
-            "Cache is only supported for GET requests.",
-        )
+        raise ValueError("Cache is only supported for GET requests.")
 
     if enable_cache:
         cache_key = generate_cache_key(url, params)
@@ -71,13 +75,76 @@ def _perform_request(
             json.dumps(response) if consume == ConsumerType.JSON else response,
             cache_ttl,
         )
-        logger.info(
-            "Cached response for %s in %s",
-            url,
-            DequestConfig.CACHE_PROVIDER,
-        )
+        logger.info("Cached response for %s in %s", url, DequestConfig.CACHE_PROVIDER)
 
     return response
+
+
+def _execute_sync_request(
+    formatted_url: str,
+    method: str,
+    headers: dict[str, str],
+    json_body: dict | None,
+    query_params: dict | None,
+    form_params: dict | None,
+    timeout: int,
+    enable_cache: bool,
+    cache_ttl: int | None,
+    consume: ConsumerType,
+    dto_class: type[T] | None,
+    source_field: str | None,
+    retries: int,
+    retry_on_exceptions: tuple[Exception, ...] | None,
+    retry_delay: Union[float, Callable[[], Iterator]],
+    giveup: Callable[[Exception], bool] | None,
+    circuit_breaker: CircuitBreaker | None,
+) -> T | dict:
+    _retry_delay = _resolve_optional_callable(retry_delay)
+
+    for attempt in range(1, retries + 2):
+        try:
+            response_data = _perform_request(
+                formatted_url,
+                method,
+                headers,
+                json_body,
+                query_params,
+                form_params,
+                timeout,
+                enable_cache,
+                cache_ttl,
+                consume,
+            )
+
+            if circuit_breaker:
+                circuit_breaker.record_success()
+
+            return _map_response(response_data, dto_class, source_field, consume)
+
+        except Exception as error:
+            if _should_retry(error, retry_on_exceptions, giveup) and attempt < retries + 1:
+                logger.error("Dequest client error: %s", error)
+                delay = get_next_delay(_retry_delay)
+                logger.info(
+                    "Retrying in %s seconds... (Attempt %s/%s)",
+                    delay,
+                    attempt,
+                    retries,
+                )
+                time.sleep(delay)
+                continue
+
+            if circuit_breaker:
+                circuit_breaker.record_failure()
+
+            if _should_retry(error, retry_on_exceptions, giveup):
+                raise DequestError(
+                    f"Dequest client failed after {retries} attempts: {error!s}",
+                ) from error
+
+            raise DequestError(f"Dequest client failed: {error!s}") from error
+
+    return None  # This line should never be reached
 
 
 def sync_client(
@@ -135,84 +202,37 @@ def sync_client(
                 kwargs,
             )
             formatted_url = url.format(**path_params)
+            request_headers = _prepare_headers(headers, auth_token, api_key)
 
-            request_headers = headers() if callable(headers) else (headers or {})
-            token_value = auth_token() if callable(auth_token) else auth_token
-            api_key_value = api_key() if callable(api_key) else api_key
-            _retry_delay = retry_delay() if callable(retry_delay) else retry_delay
+            blocked, fallback_response = _handle_circuit_breaker(
+                circuit_breaker,
+                formatted_url,
+                args,
+                kwargs,
+                is_async=False,
+            )
+            if blocked:
+                return fallback_response
 
-            if token_value:
-                request_headers["Authorization"] = f"Bearer {token_value}"
-            if api_key_value:
-                request_headers["x-api-key"] = api_key_value
-
-            # Circuit breaker logic (only applies if an instance of CircuitBreaker is provided)
-            if circuit_breaker and not circuit_breaker.allow_request():
-                logger.warning("Circuit breaker blocking requests to %s", formatted_url)
-                if circuit_breaker.fallback_function:
-                    return circuit_breaker.fallback_function(*args, **kwargs)
-
-                raise CircuitBreakerOpenError(
-                    f"Circuit breaker is OPEN. Requests to {formatted_url} are blocked.",
-                )
-
-            for attempt in range(1, retries + 2):
-                try:
-                    response_data = _perform_request(
-                        formatted_url,
-                        method,
-                        request_headers,
-                        json_body,
-                        query_params,
-                        form_params,
-                        timeout,
-                        enable_cache,
-                        cache_ttl,
-                        consume,
-                    )
-
-                    if circuit_breaker:
-                        circuit_breaker.record_success()
-
-                    if not dto_class:
-                        return response_data
-
-                    return (
-                        map_json_to_dto(dto_class, response_data, source_field)
-                        if consume == ConsumerType.JSON
-                        else map_xml_to_dto(dto_class, response_data)
-                    )
-
-                except Exception as e:
-                    _giveup = giveup(e) if giveup else False
-
-                    if retry_on_exceptions and isinstance(e, retry_on_exceptions) and not _giveup:
-                        logger.error("Dequest client error: %s", e)
-
-                        if attempt < retries + 1:
-                            delay = get_next_delay(_retry_delay)
-                            logger.info(
-                                "Retrying in %s seconds... (Attempt %s/%s)",
-                                delay,
-                                attempt,
-                                retries,
-                            )
-                            time.sleep(delay)
-                        else:
-                            # Record single failure when all attempts fail
-                            if circuit_breaker:
-                                circuit_breaker.record_failure()
-                            raise DequestError(
-                                f"Dequest client failed after {retries} attempts: {e!s}",
-                            ) from e
-                    else:
-                        if circuit_breaker:
-                            circuit_breaker.record_failure()
-                        raise DequestError(
-                            f"Dequest client failed: {e!s}",
-                        ) from e
-
-            return None
+            return _execute_sync_request(
+                formatted_url,
+                method,
+                request_headers,
+                json_body,
+                query_params,
+                form_params,
+                timeout,
+                enable_cache,
+                cache_ttl,
+                consume,
+                dto_class,
+                source_field,
+                retries,
+                retry_on_exceptions,
+                retry_delay,
+                giveup,
+                circuit_breaker,
+            )
 
         return wrapper
 

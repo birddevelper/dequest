@@ -91,8 +91,8 @@ users = get_users(city="New York")
 print(users)
 ```
 
-### Asynchronous API Calls
-Use `@async_client` to make non-blocking HTTP requests:
+### Asynchronous Fire-and-Forget API Calls
+Use `@async_client` to make non-blocking fire-and-forget HTTP requests in synchronous/asynchronous code, with callback for handling responses:
 
 ```python
 from dequest import async_client, HTTPMethod
@@ -105,6 +105,24 @@ def notify():
     pass
 
 notify()
+```
+
+### Awaitable Asynchronous API Calls
+Use `@async_await_client` to make asynchronous HTTP requests that can be awaited for their result:
+
+```python
+import asyncio
+from dequest import async_await_client, QueryParameter
+
+@async_await_client(url="https://jsonplaceholder.typicode.com/users", dto_class=UserDto)
+async def get_users_async(city: str = QueryParameter(default="Paris", alias="city_name")) -> List[UserDto]:
+    pass
+
+async def main():
+    users = await get_users_async(city="New York")
+    print(users)
+
+asyncio.run(main())
 ```
 
 ## Handling Parameters

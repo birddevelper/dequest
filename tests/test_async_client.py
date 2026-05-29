@@ -27,6 +27,7 @@ async def fake_succesful_async_request(
     json,
     params,
     data,
+    files,
     timeout,
     consume,
 ):
@@ -40,6 +41,7 @@ async def fake_succesful_async_request_for_json(
     json,
     params,
     data,
+    files,
     timeout,
     consume,
 ):
@@ -53,6 +55,7 @@ async def fake_succesful_async_request_for_params(
     json,
     params,
     data,
+    files,
     timeout,
     consume,
 ):
@@ -66,6 +69,7 @@ async def fake_succesful_async_request_for_data(
     json,
     params,
     data,
+    files,
     timeout,
     consume,
 ):

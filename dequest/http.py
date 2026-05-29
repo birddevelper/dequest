@@ -28,10 +28,13 @@ def sync_request(
     json: dict,
     params: dict,
     data: dict,
+    files: dict,
     timeout: int,
     consume: ConsumerType,
 ):
     logger.info("Sending %s request to %s", method, url)
+    # Filter out None values from files dict
+    filtered_files = {k: v for k, v in (files or {}).items() if v is not None}
     response = httpx.request(
         method.upper(),
         url,
@@ -39,6 +42,7 @@ def sync_request(
         json=json,
         params=params,
         data=data,
+        files=filtered_files if filtered_files else None,
         timeout=timeout,
     )
     response.raise_for_status()
@@ -53,10 +57,13 @@ async def async_request(
     json: dict,
     params: dict,
     data: dict,
+    files: dict,
     timeout: int,
     consume: ConsumerType,
 ):
     logger.info("Sending %s request to %s", method, url)
+    # Filter out None values from files dict
+    filtered_files = {k: v for k, v in (files or {}).items() if v is not None}
     async with httpx.AsyncClient() as client:
         response = await client.request(
             method.upper(),
@@ -65,6 +72,7 @@ async def async_request(
             json=json,
             params=params,
             data=data,
+            files=filtered_files if filtered_files else None,
             timeout=timeout,
         )
         response.raise_for_status()

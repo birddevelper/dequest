@@ -44,7 +44,9 @@ class ParameterParserFactory:
 
 
 def _make_parameter(cls: type, params: Any) -> type:
-    base_type, alias = ParameterParserFactory.get_parser_by_type(type(params)).parse(params)
+    base_type, alias = ParameterParserFactory.get_parser_by_type(type(params)).parse(
+        params,
+    )
     new_name = f"{cls.__name__}_{base_type.__name__}" if base_type is not None else cls.__name__
     return type(new_name, (cls,), {"__base_type__": base_type, "__alias__": alias})
 
@@ -88,6 +90,10 @@ class QueryParameter(ParameterDefinition, Generic[T]):
 
 
 class FormParameter(ParameterDefinition, Generic[T]):
+    pass
+
+
+class FileParameter(ParameterDefinition):
     pass
 
 

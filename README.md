@@ -46,7 +46,7 @@ Dequest is a full featured declarative HTTP client for Python that simplifies th
 
 ✅ Maps API Json/XML response to DTO object and list (Supports unlimited nested DTOs)
 
-✅ Support query parameters, JSON body and Form-data
+✅ Support query parameters, JSON body, Form-data and File uploads
 
 ✅ Retry and Backoff
 
@@ -165,6 +165,40 @@ def create_user(name: str = JsonBody(), city: str = JsonBody()) -> UserDto:
 
 new_user = create_user(name="Alice", city="Berlin")
 ```
+
+### Form Parameters
+For POST/PUT requests pass values as form data using `FormParameter`:
+
+```python
+from dequest import sync_client, HTTPMethod, FormParameter
+
+@sync_client(url="https://api.example.com/users", method=HTTPMethod.POST, dto_class=UserDto)
+def create_user(name: str = FormParameter(), city: str = FormParameter()) -> UserDto:
+    pass
+
+new_user = create_user(name="Alice", city="Berlin")
+```
+
+### File Uploads
+Upload files along with form data using `FileParameter`. Supports bytes, file paths, and file-like objects:
+
+```python
+from dequest import sync_client, HTTPMethod, FileParameter, FormParameter
+
+@sync_client(url="https://api.example.com/upload", method=HTTPMethod.POST, dto_class=dict)
+def upload_file(file: bytes = FileParameter(), description: str = FormParameter()) -> dict:
+    pass
+
+# Upload with bytes
+upload_file(file=b"file content", description="My document")
+
+# FileParameter also supports:
+# - File paths: upload_file(file="/path/to/file.pdf", description="...")
+# - File-like objects: upload_file(file=open("file.pdf", "rb"), description="...")
+```
+
+Note: `FileParameter` automatically converts the request to multipart/form-data format. Cannot be combined with `JsonBody`.
+
 
 ## Deprecated Parameter Syntax
 The old subscription-based parameter style is deprecated and will be removed in a future release.

@@ -21,6 +21,7 @@ async def test_async_request_success():
             json=None,
             params=None,
             data=None,
+            files=None,
             timeout=5,
             consume=ConsumerType.JSON,
         )
@@ -43,6 +44,7 @@ async def test_async_request_failure():
                 json=None,
                 params=None,
                 data=None,
+                files=None,
                 timeout=5,
                 consume=ConsumerType.JSON,
             )
@@ -63,6 +65,7 @@ async def test_async_request_timeout():
                 json=None,
                 params=None,
                 data=None,
+                files=None,
                 timeout=1,
                 consume=ConsumerType.JSON,
             )

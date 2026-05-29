@@ -37,6 +37,7 @@ def _perform_request(
     json_body: dict | None,
     params: dict | None,
     data: dict | None,
+    files: dict | None,
     timeout: int,
     enable_cache: bool,
     cache_ttl: int | None,
@@ -65,6 +66,7 @@ def _perform_request(
         json_body,
         params,
         data,
+        files,
         timeout,
         consume,
     )
@@ -87,6 +89,7 @@ def _execute_sync_request(
     json_body: dict | None,
     query_params: dict | None,
     form_params: dict | None,
+    file_params: dict | None,
     timeout: int,
     enable_cache: bool,
     cache_ttl: int | None,
@@ -110,6 +113,7 @@ def _execute_sync_request(
                 json_body,
                 query_params,
                 form_params,
+                file_params,
                 timeout,
                 enable_cache,
                 cache_ttl,
@@ -196,7 +200,7 @@ def sync_client(
             if consume == ConsumerType.TEXT and dto_class:
                 raise DequestError("ConsumerType.TEXT cannot be used with dto_class.")
 
-            path_params, query_params, form_params, json_body = extract_parameters(
+            path_params, query_params, form_params, file_params, json_body = extract_parameters(
                 signature,
                 args,
                 kwargs,
@@ -221,6 +225,7 @@ def sync_client(
                 json_body,
                 query_params,
                 form_params,
+                file_params,
                 timeout,
                 enable_cache,
                 cache_ttl,

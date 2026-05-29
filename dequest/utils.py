@@ -14,6 +14,7 @@ from defusedxml import ElementTree
 from dequest.exceptions import InvalidParameterValueError
 from dequest.parameter_types import (
     PARAMETER_UNSET,
+    FileParameter,
     FormParameter,
     JsonBody,
     ParameterDefinition,
@@ -22,7 +23,13 @@ from dequest.parameter_types import (
 )
 
 T = TypeVar("T")  # Generic Type for DTO
-PARAMETER_TYPES = (PathParameter, QueryParameter, FormParameter, JsonBody)
+PARAMETER_TYPES = (
+    PathParameter,
+    QueryParameter,
+    FormParameter,
+    FileParameter,
+    JsonBody,
+)
 
 
 @dataclass(frozen=True)
@@ -202,7 +209,10 @@ def _resolve_annotation_base_type(annotation: Any) -> type | None:
     return getattr(annotation, "__base_type__", None)
 
 
-def _resolve_alias(annotation: Any, parameter_definition: ParameterDefinition | None) -> str | None:
+def _resolve_alias(
+    annotation: Any,
+    parameter_definition: ParameterDefinition | None,
+) -> str | None:
     if parameter_definition is not None and parameter_definition.alias is not None:
         return parameter_definition.alias
     return getattr(annotation, "__alias__", None)
@@ -227,7 +237,11 @@ def _resolve_parameter(
     )
 
 
-def _convert_parameter_value(param_name: str, param_value: Any, base_type: type | None) -> Any:
+def _convert_parameter_value(
+    param_name: str,
+    param_value: Any,
+    base_type: type | None,
+) -> Any:
     if param_value is None or base_type is None:
         return param_value
 
@@ -244,6 +258,7 @@ def _build_parameter_buckets() -> dict[type[ParameterDefinition], dict[str, Any]
         PathParameter: {},
         QueryParameter: {},
         FormParameter: {},
+        FileParameter: {},
         JsonBody: {},
     }
 
@@ -284,16 +299,28 @@ def extract_parameters(signature: inspect.Signature, args: tuple, kwargs: dict):
             continue
 
         param_key = resolved_parameter.alias if resolved_parameter.alias is not None else param_name
-        parameter_bucket[param_key] = _convert_parameter_value(
-            param_name,
-            resolved_parameter.value,
-            resolved_parameter.base_type,
+
+        # Special handling for FileParameter: don't convert, pass as-is
+        if resolved_parameter.parameter_type is FileParameter:
+            parameter_bucket[param_key] = resolved_parameter.value
+        else:
+            parameter_bucket[param_key] = _convert_parameter_value(
+                param_name,
+                resolved_parameter.value,
+                resolved_parameter.base_type,
+            )
+
+    # Validate: FileParameter and JsonBody cannot be used together
+    if parameter_buckets[FileParameter] and parameter_buckets[JsonBody]:
+        raise ValueError(
+            "FileParameter cannot be used with JsonBody. " "Use FormParameter with FileParameter for file uploads.",
         )
 
     return (
         parameter_buckets[PathParameter],
         parameter_buckets[QueryParameter],
         parameter_buckets[FormParameter],
+        parameter_buckets[FileParameter],
         parameter_buckets[JsonBody],
     )
 
